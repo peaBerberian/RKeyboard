@@ -3,9 +3,10 @@
  * keys in an rxjs observable style.
  */
 
-import { Observable, QueueScheduler } from '../../misc/rx.js';
+import { Observable } from 'rxjs/Observable';
 
-import { isSet, uniq } from '../../misc/utils.js';
+import isSet from './misc/isSet.js';
+import uniq from './misc/uniq.js';
 
 import KeyEventListener from './key_event_listener.js';
 import config from './config.js';
@@ -291,8 +292,7 @@ export default class Remote {
         // clear catchers
         this[keyEventListenerSymbol].unregister(keys, onEvent);
       };
-    })
-    .observeOn(new QueueScheduler());
+    });
   }
 }
 
@@ -310,10 +310,19 @@ const _processListenArguments = function(...args) {
   const hasOptions = typeof lastArg === 'object';
   const options = hasOptions ? lastArg : {};
 
+  const getKeysFromNames = (names) =>
+    names.reduce((kns, name) => {
+      if (Object.keys(config.GROUPINGS).includes(name)) {
+        return kns.concat(config.GROUPINGS[name]);
+      }
+      kns.push(name);
+      return kns;
+    }, []);
+
   if (hasOptions && argsLen > 1) {
-    keys = args.slice(0, argsLen - 1);
+    keys = getKeysFromNames(args.slice(0, argsLen - 1));
   } else if (!hasOptions && argsLen) {
-    keys = args;
+    keys = getKeysFromNames(args);
   } else {
 
     // else keys is every key in the keymap

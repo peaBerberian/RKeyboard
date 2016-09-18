@@ -11,7 +11,7 @@
  * welcomed abstractions.
  */
 
-import { isSet, uniq } from '../../misc/utils.js';
+import uniq from './misc/uniq.js';
 import { addKeyEventListener, removeKeyEventListener } from './events.js';
 import config from './config.js';
 
@@ -56,7 +56,7 @@ const onKeyUpSymbol = Symbol();
  * kel.unregister(myFirstCallback);
  * // we could also have written:
  * // kel.unregister(['Up', 'Down'], myFirstCallback);
- * // to speed up the process 
+ * // to speed up the process
  *
  * // unregister every keys but 'Exit' from mySecondCallback
  * kel.unregister(['Up', 'Left', 'Down'], mySecondCallback);
@@ -171,10 +171,10 @@ const KeyEventListener = class {
       }
     };
 
-    this[onKeyDownSymbol] = ({ keyName, keyCode }) => 
+    this[onKeyDownSymbol] = ({ keyName, keyCode }) =>
       triggerCatchers('keydown', keyName, keyCode);
 
-    this[onKeyUpSymbol] = ({ keyName, keyCode }) => 
+    this[onKeyUpSymbol] = ({ keyName, keyCode }) =>
       triggerCatchers('keyup', keyName, keyCode);
   }
 
@@ -188,8 +188,14 @@ const KeyEventListener = class {
    *   3. keyCode {Number}: The keyCode for the key pushed.
    *
    * List of params:
-   *   - keyNames {Array.<string>} - The array of key name to listen to.
-   *   - propagate {Boolean} (optional) - Wether the call should be propagated. 
+   *   - keyNames {Array.<string>} (optional) - The array of key name to listen
+   *     to.
+   *     If not set, every single key set in your keyMap will be listened to.
+   *
+   *   - propagate {Boolean} (optional) - Whether the call should be propagated.
+   *     If not set, the default value as set in the config will be taken
+   *     instead.
+   *
    *   - callback {Function} - The called callback once the corresponding key
    *     has been pushed. You can also set this callback as a second argument if
    *     you don't want to set any propagate value.
@@ -227,18 +233,46 @@ const KeyEventListener = class {
    * });
    */
   register(...args) {
-   
+
     const processArguments = (...args) => {
-      return (args.length === 2 && typeof args[1] === 'function') ? {
-        keyNames: isSet(args[0]) ?
-          args[0] : uniq(Object.values(config.KEY_MAP)),
-        callback: args[1]
-      } : {
-        keyNames: isSet(args[0]) ?
-          args[0] : uniq(Object.values(config.KEY_MAP)),
-        propagate: isSet(args[1]) ?
-          args[1] : config.DEFAULT_PROPAGATE_VALUE,
-        callback: args[2]
+      let keyNames, propagate, callback;
+
+      let argCounter = 0;
+
+      // First optional argument, keyName
+      if (Array.isArray(args[0])) {
+
+        // check if each key is in a grouping, add each single key wanted to
+        // keyNames
+        keyNames = args[0].reduce((kns, name) => {
+          if (Object.keys(config.GROUPINGS).includes(name)) {
+            return kns.concat(config.GROUPINGS[name]);
+          }
+          kns.push(name);
+          return kns;
+        }, []);
+        argCounter++;
+      } else {
+        // take all the keys
+        keyNames = uniq(Object.values(config.KEY_MAP));
+      }
+
+      // Second/first argument: propagate
+      if (typeof args[argCounter] === 'boolean') {
+        propagate = args[argCounter];
+      } else {
+        propagate = config.DEFAULT_PROPAGATE_VALUE;
+      }
+
+      // Last argument: callback
+      if (typeof args[args.length - 1] === 'function') {
+        callback = args[args.length - 1];
+      }
+
+      return {
+        keyNames,
+        propagate,
+        callback
       };
     };
 
@@ -323,13 +357,32 @@ const KeyEventListener = class {
    */
   unregister(...args) {
     const processArguments = (...args) => {
-      return (args.length === 1 && typeof args[0] === 'function') ? {
-        keyNames: uniq(Object.values(config.KEY_MAP)),
-        callback: args[0]
-      } : {
-        keyNames: isSet(args[0]) ?
-          args[0] : uniq(Object.values(config.KEY_MAP)),
-        callback: args[1]
+      let keyNames, callback;
+
+      // First optional argument, keyName
+      if (Array.isArray(args[0])) {
+        // check if each key is in a grouping, add each single key wanted to
+        // keyNames
+        keyNames = args[0].reduce((kns, name) => {
+          if (Object.keys(config.GROUPINGS).includes(name)) {
+            return kns.concat(config.GROUPINGS[name]);
+          }
+          kns.push(name);
+          return kns;
+        }, []);
+      } else {
+        // take all the keys
+        keyNames = uniq(Object.values(config.KEY_MAP));
+      }
+
+      // Last argument: callback
+      if (typeof args[args.length - 1] === 'function') {
+        callback = args[args.length - 1];
+      }
+
+      return {
+        keyNames,
+        callback
       };
     };
 

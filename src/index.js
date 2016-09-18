@@ -28,11 +28,19 @@
  */
 
 import Remote from './remote.js';
+import config from './config.js';
 
-// export new instance of the remote by default
-export default new Remote();
+// Allow users to modify the following config keys
+[
+  'KEY_MAP',
+  'GROUPINGS',
+  'DEFAULT_PROPAGATE_VALUE',
+  'CONSECUTIVE_KEYDOWNS_INTERVAL'
+].forEach((conf) => {
+  Object.defineProperty(Remote, conf, {
+    get: () => config[conf],
+    set: (val) => config[conf] = val,
+  });
+});
 
-// still export Remote class for possible future usages.
-export {
-  Remote
-};
+export default Remote;

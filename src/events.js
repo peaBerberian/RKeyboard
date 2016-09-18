@@ -26,7 +26,7 @@
  * behavior on the browser.
  */
 
-import { isSet } from '../../misc/utils.js';
+import isSet from './misc/isSet.js';
 import config from './config.js';
 
 /*
