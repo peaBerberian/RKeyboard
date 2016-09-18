@@ -6,13 +6,13 @@ Complex keyboard management made easy using RxJS observables.
 ### Simple events
 
 ```js
-import KeyBoard from 'RxKeys';
+import Keyboard from 'RxKeys';
 
-// Instanciating a new KeyBoard
+// Instanciating a new Keyboard
 // Why, you may ask? Each instance has its own propagations rules.
 // This concept is a little complex, so let's see what we can do
 // progressively.
-const kb = new KeyBoard();
+const kb = new Keyboard();
 
 /*
  * 1. Listening to a single Key
@@ -76,8 +76,8 @@ kb.listen().subscribe((key) => {
 ### Press events
 
 ```js
-import KeyBoard from 'RxKeys';
-const kb = new KeyBoard();
+import Keyboard from 'RxKeys';
+const kb = new Keyboard();
 
 /*
  * 1. Emit 'press' event after 500 ms if the key is pushed
@@ -141,8 +141,8 @@ kb.listen('Up', 'Down', options)
 ### Propagation rules
 
 ```js
-import KeyBoard from 'RxKeys';
-const kb = new KeyBoard();
+import Keyboard from 'RxKeys';
+const kb = new Keyboard();
 
 // Here, we can take control of the key 'Enter' and 'End'.
 const sub1 = kb.listen('Enter', 'End')
@@ -178,8 +178,8 @@ const sub3 = kb.listen('Enter', { propagate: true })
 // This can go on and on to sub1 with multiple layer of propagations.
 
 // Declaring two instances. Each has its own propagation layers.
-const kb1 = new KeyBoard();
-const kb2 = new KeyBoard();
+const kb1 = new Keyboard();
+const kb2 = new Keyboard();
 
 kb1.listen('Enter').subscribe(() => console.log('a'));
 
@@ -197,12 +197,12 @@ kb2.listen('Enter', { propagate: true })
 
 ### Configuration
 ```js
-import KeyBoard from 'RxKeys';
+import Keyboard from 'RxKeys';
 
 // Replacing the default key map.
 // Example: we want to distinguish numeric keys from the
 // 'numeric pad' keys.
-KeyBoard.KEY_MAP = {
+Keyboard.KEY_MAP = {
   48: 'Num0',
   49: 'Num1',
   //...
@@ -215,17 +215,17 @@ KeyBoard.KEY_MAP = {
 };
 
 // Replacing the default Groupings for the same reason
-KeyBoard.GROUPINGS = {
+Keyboard.GROUPINGS = {
   Numeric: ['Num0', 'Num1'/*, ... */, 'Num9'],
   Numpad: ['Numpad0', 'Numpad1'/*, ... */, 'Numpad9']
 };
 
-// I want every KeyBoard to propagate by default
-KeyBoard.DEFAULT_PROPAGATE_VALUE = true;
+// I want every Keyboard to propagate by default
+Keyboard.DEFAULT_PROPAGATE_VALUE = true;
 
 // This one is a little complicated.
 // It indicates an interval at which keydown-like events
-// are re-emitted for the KeyBoard (until the release).
+// are re-emitted for the Keyboard (until the release).
 //
 // After being emitted, two cases:
 //   1. The current listen call for this key already
@@ -242,7 +242,7 @@ KeyBoard.DEFAULT_PROPAGATE_VALUE = true;
 //          unsubscribed after this push.
 //
 // Put at 0 to deactivate this feature.
-KeyBoard.CONSECUTIVE_KEYDOWNS_INTERVAL = 500; // 500ms
+Keyboard.CONSECUTIVE_KEYDOWNS_INTERVAL = 500; // 500ms
 ```
 >  // The event property tells us which type of event happened.
 >  // it can be:

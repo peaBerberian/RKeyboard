@@ -1,8 +1,10 @@
+const webpack = require('webpack');
+
 module.exports = {
   entry: './src/index.js',
   output: {
     path: './bin',
-    filename: 'remote.js'
+    filename: 'rkeyboard.js'
   },
   module: {
     loaders: [
@@ -15,6 +17,12 @@ module.exports = {
         test: /src\/.*\.js$/
       }
     ]
-
-  }
+  },
+  plugins: [
+    new webpack.optimize.UglifyJsPlugin({
+      compress: {
+        warnings: false
+      },
+    })
+  ]
 };

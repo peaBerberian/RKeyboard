@@ -1,26 +1,29 @@
 {
-  "name": "rx-keys",
+  "name": "rkeyboard.js",
   "version": "0.1.0",
-  "description": "Complete keyboard management with RxJS",
-  "main": "bin/build.min.js",
+  "description": "Complex keyboard management made easy",
+  "main": "bin/rkeyboard.js",
   "scripts": {
     "test": "",
     "build": "webpack",
-    "clean": "rm -rf ./bin/*"
+    "clean": "rm -rf ./bin/*",
+    "lint": "eslint src/**/*.js"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/peaBerberian/RxKeys.git"
   },
   "keywords": [
-    "rx",
-    "rxjs",
     "keyboard",
     "key",
     "keys",
     "remote",
     "control",
-    "controls"
+    "controls",
+    "rxjs",
+    "rx.js",
+    "reactive",
+    "events"
   ],
   "author": "peaberberian",
   "license": "MIT",
@@ -28,9 +31,6 @@
     "url": "https://github.com/peaBerberian/RxKeys/issues"
   },
   "homepage": "https://github.com/peaBerberian/RxKeys#readme",
-  "dependencies": {
-    "rxjs": "^5.0.0-beta.12"
-  },
   "devDependencies": {
     "babel-core": "^6.14.0",
     "babel-eslint": "^6.1.2",
