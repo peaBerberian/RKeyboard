@@ -1,5 +1,5 @@
 # R-Keyboard
-Complex keyboard management made easy using RxJS observables.
+Complex keyboard management made easy.
 
 ## Implementations
 
