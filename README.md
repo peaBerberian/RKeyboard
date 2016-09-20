@@ -24,6 +24,63 @@ The current implementations are:
 The SimpleKeyboard is an implementation of our rKeyboard meant to be simple to use for frequent usecases.
 
 Each call of the simpleKeyboard function generates an object.
+```js
+import { SimpleKeyboard } from 'rkeyboard';
+
+// creating a SimpleKeyboard
+const kb = SimpleKeyboard.create();
+
+console.log(typeof kb); // Function
+
+// listening to new keys
+const myKeys = kb('Enter', 'Left', 'a');
+
+console.log(typeof myKeys); // Object
+
+```
+```js
+import { SimpleKeyboard } from 'rkeyboard';
+
+const kb = SimpleKeyboard.create();
+const myKeys = kb('Enter', 'Left', 'a');
+
+// catch 'push' events only (first keydown)
+myKeys.onPush = (e) => {
+ // 'push' here
+ console.log(e.event);
+
+ // 'Enter', 'Up' or 'Down' as they are the only keys listened to
+ console.log(e.keyName);
+
+ // Time the key has been pushed in ms (0 for 'push' event)
+ console.log(e.timepress);
+
+ // ...
+};
+
+// catch 'press' events (here, after 200ms of press)
+myKeys.onPress = (e) => {
+ // ...
+};
+
+// catch 'release' events (keyup)
+myKeys.onRelease = (e) => {
+ // ...
+};
+
+// catch every events (all 3 of them)
+myKeys.onEvent = (e) => {
+ // ...
+};
+
+// catch both push and press events
+myKeys.onDown = (e) => {
+ // ...
+};
+
+// stop listening to these keys
+myKeys.stopListening();
+```
 
 To this object, you can add any of the 5 following properties:
   - __onEvent__: callback called as a 'push', 'press' or 'release' event is received.
