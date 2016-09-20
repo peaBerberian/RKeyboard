@@ -3,11 +3,12 @@ Complex keyboard management made easy.
 
 ## Implementations
 
-As the RKeyboard code is very modular, you can adapt it to any project very easily:
-  - Reacting to keyboard inputs by using regular callbacks.
-  - Reacting to keyboard inputs directly in methods of React Components.
-  - Reacting to keyboard inputs by using an event emitter.
-  - Reacting to keyboard inputs by using RxJS observables (this was our default implementation)
+As the RKeyboard code is very modular, you can adapt it to any project very easily.
+For example, with it you can easily react to keyboard inputs:
+  - by using regular callbacks.
+  - by directly triggering methods in React Components.
+  - by using an event emitter.
+  - by using RxJS observables (this was our default implementation)
   - ...
 
 Multiple (minimal) implementations have already been written to save you the hassle and showcase what can be done in very few lines (I'm talking about less than 10 lines, watch our implementation's code in _src/implementations/_).
