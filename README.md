@@ -1,5 +1,68 @@
 # R-Keyboard
-Complex keyboard management made easy.
+
+RKeyboard is a tool allowing complex keybindings.
+
+Its principal features are:
+  - bind, in a one-liner, callbacks to 'keydown' and 'keyup' events for specific keys
+  - easy-to-remember and configurable key names _(instead of keycodes)_
+  - complex 'press' events definition _(example: trigger a callback every 200ms after the key is pushed until its release)_
+  - configurable key groupings _(example: 'Numeric' for numeric + numpad keys)_
+  - automatic multi-layers propagation rules for complex UIs
+  - easy to wrap in other libraries:
+    - _'vanilla' js_: The principal implementation doesn't depend on any library and will work on any browser
+    - _RxJS_: one of our default implementations can use your version of RxJS to transform inputs into an Observable stream
+    - _React_: can be directly linked to React Components methods or props (WIP)
+    - ...: you can use our createNewKeyboard function directly to easily link the RKeyboard to your specific architecture
+
+> The RKeyboard was first integrated on TV platforms where every interactions, some complex, were done with the remote keys > (which were translated into KeyboardEvent's keycodes).
+
+## Overview
+```js
+import RKeyboard from 'rkeyboard';
+
+const keyboard = RKeyboard.create();
+
+// simplest use case: listening to the 'Up' key and doing
+// an alert when the key is pushed
+keyboard('Up', { onPush: () => alert('Up pushed!') });
+```
+```js
+//
+const myKeys1 = keyboard(['Enter', 'Up', 'a'], {
+  onPush: (evt) => {
+    console.log('You pushed the key ${evt.keyName}');
+  },
+  onRelease: (evt) => {
+    console.log('You released the key ${evt.keyName}');
+  }
+});
+
+const myKeys2 = keyboard(['Enter', 'Up', 'a'], {
+  // complex press usecase
+  press: { after: 500, interval: 200 },
+
+  onPush: (evt) => {
+    console.log('You pushed the key ${evt.keyName}');
+  },
+
+  // press callback, triggered:
+  //   1. after 500ms the keydown event happened (with no keyup)
+  //   2. every 200ms after it (until the keyup)
+  onPress: (evt) => {
+    console.log('You pressed the key ${evt.keyName}');
+  },
+  
+  // called on 'push' AND 'press'
+  onDown: (evt) => {
+    const event = evt.event;
+    console.log('You  %s the key ${evt.keyName}',
+      event === 'push' ? 'pushed' : 'pressed');
+  }
+});
+
+// stop listening
+myKeys2();
+```
 
 ## Implementations
 
