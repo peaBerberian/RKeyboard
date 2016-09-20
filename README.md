@@ -18,6 +18,40 @@ The current implementations are:
   - __SimpleKeyboad__: Add the possibility to add a callback by type of event.
   - __RxKeyboard__: Keyboard meant to be used with RxJS. Here your keyboard's stream of inputs can be treated as an observable.
   
+### RKeyboard
+
+The RKeyboard is the default implementation.
+
+```js
+import { RKeyboard } from 'rkeyboard';
+
+// creating a SimpleKeyboard
+const kb = RKeyboard.create();
+
+// simply listening to the 'Enter', 'Up' and 'a' keys
+kb('Enter', 'Up', 'a', pushCallback, releaseCallback);
+
+// listen to key press event on Up key configured with `after` and
+// `interval` options
+kb('Up', { press: { after: 1000, interval: 2000 } },
+  pushCallback,
+  pressCallback, // note this was added here
+  releaseCallback
+);
+
+// stop listening
+kb('Up', { press: { after: 1000, interval: 2000 } },
+  pushCallback,
+  pressCallback, // note this was added here
+  releaseCallback
+);
+
+// stop listening
+const stopListening = kb(pushCallback, releaseCallback);
+stopListening();
+```
+### MinimalKeyboar
+
 
 ### SimpleKeyboard
 
