@@ -11,13 +11,11 @@
  *
  *   - Only works for 'keydown' and 'keyup' events.
  *
- *   - The delay between successive keydown events is controlled (@see config)
- *
  *   - The events will be filtered for only the key available in this webapp's
  *     key map (@see config).
  *
  *   - The callback will have as argument an object with only two keys:
- *       - keyCode: the keyCode of the key pushed.
+ *       - keyCode: the keyCode of the key pushed. Should be unique.
  *       - keyName: the name of the key pushed, as defined in the key map.
  *
  * Please note that this file perform an addEventListener and a
@@ -29,67 +27,35 @@
 import isSet from './misc/isSet.js';
 import config from './config.js';
 
-/*
- * Specific object to manage consecutive keydown events for the same keyCode as
- * long as it has not been released.
- *
- * This is useful only for some cornercases, like chaining multiple components
- * without releasing a key (for example, navigating through several components
- * by maintening the 'Down' key).
- *
- * See this like a JavaScript implementation of the normally lower-level code
- * that manages multiple consecutive keydown events when you maintain the same
- * key.
- *
- * --
- *
- * The keys of this object are the keycodes of the keys pushed.
- * The values are intervals at which we re-send a keydown-like event.
- * I choose to control directly this part because our devices all have different
- * intervals for consecutive keydown.
- *
- * --
- *
- * Basically, if you perform a remote.listen call on a 'Enter' key push event,
- * for example, this new call will receive a new push order after this interval
- * if the key has not been released since (Note: for the same remote.listen,
- * multiple consecutive keydowns are filtered, on purpose).
- *
- * --
- *
- * @type Object
- */
-const CONSECUTIVE_KEYDOWNS_OBJECT = {};
-
 /**
  * Array containing every key pushed.
- * Used by addKeyPushed / removeKeyPushed / isKeyPushed.
+ * Used by addKeyPushedToArray / removeKeyPushedFromArray / isKeyPushed.
  * @type Array
  */
-const KEYS_PUSHED = [];
+const KEYCODES_PUSHED = [];
 
 /**
- * Add keyCode to the KEYS_PUSHED array.
+ * Add keyCode to the KEYCODES_PUSHED array.
  *
  * Used to be able to know if the key is currently pushed through the
  * isKeyPushed function.
  * @param {Number} keyCode
  */
-const addKeyPushed = keyCode => {
-  KEYS_PUSHED.push(keyCode);
+const addKeyPushedToArray = keyCode => {
+  KEYCODES_PUSHED.push(keyCode);
 };
 
 /**
- * Remove keyCode from the KEYS_PUSHED array.
+ * Remove keyCode from the KEYCODES_PUSHED array.
  *
  * Used to be able to know if the key is currently pushed through the
  * isKeyPushed function.
  * @param {Number} keyCode
  */
-const removeKeyPushed = keyCode => {
-  for (let i = KEYS_PUSHED.length - 1; i >= 0; i--) {
-    if (KEYS_PUSHED[i] === keyCode) {
-      KEYS_PUSHED.splice(i, 1);
+const removeKeyPushedFromArray = keyCode => {
+  for (let i = KEYCODES_PUSHED.length - 1; i >= 0; i--) {
+    if (KEYCODES_PUSHED[i] === keyCode) {
+      KEYCODES_PUSHED.splice(i, 1);
       return;
     }
   }
@@ -138,41 +104,6 @@ const triggerKeyUpEvent = (keyName, keyCode) => {
 };
 
 /**
- * Start triggering callbacks defined for the keydown events.
- * Continue triggering them at a CONSECUTIVE_KEYDOWNS_INTERVAL interval.
- * @param {Number} keyCode
- * @param {string} keyName
- */
-const startTriggeringKeydownCallbacks = (keyCode, keyName) => {
-  const { CONSECUTIVE_KEYDOWNS_INTERVAL } = config;
-
-  stopTriggeringKeydownCallbacks(keyCode);
-
-  // call every callbacks related to this key
-  triggerKeyDownEvent(keyName, keyCode);
-
-  if (CONSECUTIVE_KEYDOWNS_INTERVAL) {
-    // and do the same every CONSECUTIVE_KEYDOWNS_INTERVAL
-    CONSECUTIVE_KEYDOWNS_OBJECT[keyCode] = setInterval(() => {
-      triggerKeyDownEvent(keyName, keyCode);
-    }, CONSECUTIVE_KEYDOWNS_INTERVAL);
-  }
-};
-
-/**
- * Stop triggering callbacks defined for the keydown events at a
- * CONSECUTIVE_KEYDOWNS_INTERVAL interval.
- * @param {Number} keyCode
- */
-const stopTriggeringKeydownCallbacks = (keyCode) => {
-  const oldInterval = CONSECUTIVE_KEYDOWNS_OBJECT[keyCode];
-  if (oldInterval) {
-    clearInterval(oldInterval);
-    delete CONSECUTIVE_KEYDOWNS_OBJECT[keyCode];
-  }
-};
-
-/**
  * Trigger callbacks defined for the keyup event.
  * @param {Number} keyCode
  * @param {string} keyName
@@ -187,7 +118,10 @@ const triggerKeyupCallbacks = (keyCode, keyName) => {
  * @param {Object} evt
  */
 const onKeyDown = (evt) => {
-  const { keyCode } = evt;
+  let { keyCode } = evt;
+  if (keyCode == null) {
+    keyCode = evt.which;
+  }
 
   const keyName = config.KEY_MAP[keyCode];
 
@@ -206,10 +140,10 @@ const onKeyDown = (evt) => {
   }
 
   // Consider the key as pushed from there
-  addKeyPushed(keyCode);
+  addKeyPushedToArray(keyCode);
 
   // start sending keydown events
-  startTriggeringKeydownCallbacks(keyCode, keyName);
+  triggerKeyDownEvent(keyCode, keyName);
 };
 
 /**
@@ -217,7 +151,10 @@ const onKeyDown = (evt) => {
  * @param {Object} evt
  */
 const onKeyUp = (evt) => {
-  const { keyCode } = evt;
+  let { keyCode } = evt;
+  if (keyCode == null) {
+    keyCode = evt.which;
+  }
 
   const keyName = config.KEY_MAP[keyCode];
 
@@ -230,7 +167,7 @@ const onKeyUp = (evt) => {
   evt.preventDefault();
 
   // Consider the key as released from there.
-  removeKeyPushed(keyCode);
+  removeKeyPushedFromArray(keyCode);
 
   // stop sending keydown events
   stopTriggeringKeydownCallbacks(keyCode);
@@ -242,28 +179,11 @@ const onKeyUp = (evt) => {
 /**
  * Returns true if the key from the given keyCode is considered pushed.
  *
- * Note: The keyCode has to be added / removed through the addKeyPushed /
- * removeKeyPushed functions for this to work.
+ * Note: The keyCode has to be added / removed through the addKeyPushedToArray /
+ * removeKeyPushedFromArray functions for this to work.
  * @returns {Boolean}
  */
-const isKeyPushed = keyCode => KEYS_PUSHED.includes(keyCode);
-
-// /**
-//  * Returns true if the key for the given keyName is considered pushed.
-//  *
-//  * Note: The keyCode has to be added / removed through the addKeyPushed /
-//  * removeKeyPushed functions for this to work.
-//  * @returns {Boolean}
-//  */
-// const isKeyPushedFromKeyName = keyName => {
-//   const entries = Object.entries(config.KEY_MAP);
-//   for (let i = entries.length - 1; i >= 0; i--) {
-//     if (entries[i][1] === keyName && isKeyPushed(entries[i][0])) {
-//       return true;
-//     }
-//   }
-//   return false;
-// };
+const isKeyPushed = keyCode => KEYCODES_PUSHED.includes(keyCode);
 
 /**
  * Add new callback for a 'keydown' event on a webapp key
@@ -300,9 +220,6 @@ const addKeyEventListener = (event, callback) => {
       break;
     case 'keydown':
       addKeyDownListener(callback);
-      break;
-    default:
-    // throw new Error('This is not a key event!');
   }
 };
 
@@ -344,9 +261,6 @@ const removeKeyEventListener = (event, callback) => {
       break;
     case 'keydown':
       removeKeyDownListener(callback);
-      break;
-    default:
-      // throw new Error('This is not a key event!');
   }
 };
 
@@ -356,5 +270,6 @@ document.addEventListener('keyup', onKeyUp);
 
 export {
   addKeyEventListener,
-  removeKeyEventListener
+  removeKeyEventListener,
+  KEYCODES_PUSHED
 };

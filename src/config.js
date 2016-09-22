@@ -41,7 +41,6 @@ export default {
     105: 'Num9', // numpad 9
   },
 
-  // TODO
   /**
    * Grouping of KeyNames, that can be used as a shortcut instead of each of its
    * keynames in the remote.
@@ -70,24 +69,6 @@ export default {
   },
 
   /**
-   * Interval at which consecutive keydown events (__NOT__ 'push' events) are
-   * sent to the Remote when a key is pressed (not released).
-   *
-   * This is then processed to become 'push' events, if the current
-   * Remote.listen call did not yet produce one, or no events at all if it
-   * already sent one.
-   *
-   * This can be seen as a way to overwrite the interval set by the OS.
-   *
-   * You can set this value at 0 if you want to deactivate consecutives
-   * keydowns.
-   *
-   * @see CONSECUTIVE_KEYDOWNS_OBJECT in ./events.js
-   * @type Number
-   */
-  CONSECUTIVE_KEYDOWNS_INTERVAL: 0,
-
-  /**
    * Default value for the Remote propagate option, allowing - or not - a
    * remote.listen call to be propagated through precedent ones.
    *
@@ -100,5 +81,7 @@ export default {
    *     defined).
    * @type Boolean
    */
-  DEFAULT_PROPAGATE_VALUE: false
+  DEFAULT_PROPAGATE_VALUE: false,
+
+  DEFAULT_COMBINE_VALUE: true
 };

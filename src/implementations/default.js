@@ -4,40 +4,149 @@ import createKeyboard from '../keyboard.js';
  * Default Keyboard implementation.
  *
  * @example
- * import Keyboard from 'keyboardJs';
+ * ```js
+ * import RKeyboard from 'rkeyboard';
  *
- * const kb = Keyboard.create();
+ * const keyboard = Rkeyboard.create();
  *
- * // simply listening to the 'Enter', 'Up' and 'Down' keys
- * kb('Enter', Up', 'Down', (e) => {
- *   // either 'push' or 'release'
- *   console.log(e.event);
+ * // trigger a callback for the 'Up' key keydown events
+ * const upKey = keyboard('Up',  {
+ *  onPush: (e) => {
+ *    // 'push' as it is the only event listened here
+ *    console.log(e.event);
  *
- *   // 'Enter', 'Up' or 'Down' as they are the only keys listened to
- *   console.log(e.keyName);
+ *    // 'Up' as it is the only key listened to here
+ *    console.log(e.keyName);
  *
- *   // Time the key has been pushed in ms (0 for 'push' event)
- *   console.log(e.timepress);
+ *    // Time the key has been pushed in ms (0 for 'push' events)
+ *    console.log(e.timepress);
  *
- *   // ...
+ *    // ...
+ *  }
  * });
  *
- * // listen to key press event on Up key configured with `after` and
- * // `interval` options
- * kb('Up', { press: { after: 1000, interval: 2000 }, (e) => {
- *   // either 'push', 'release' or 'press'
- *   console.log(e.event);
- *
- *   // ...
+ * // Doing the same for multiple keys ('Up' OR 'Enter')
+ * const upAndEnter = keyboard(['Up', 'Enter'], {
+ *   onPush: (e) => {
+ *     console.log(`${e.keyName} pushed!`);
+ *   }
  * });
  *
- * // stop listening
- * const stopListening = kb('Left', (e) => {
- *   // ...
+ * // Doing something on keyup
+ * const upAndEnterRelease = keyboard(['Up', 'Enter'], {
+ *   onRelease: (e) => {
+ *     // 'release'
+ *     console.log(e.event);
+ *
+ *     console.log(`${e.keyName} released!`);
+ *   }
  * });
  *
- * stopListening();
+ * // Doing the same for all keys
+ * const upAndEnter = keyboard(null, {
+ *   onRelease: (e) => {
+ *     console.log(`${e.keyName} released!`);
+ *   }
+ * });
+ *
+ * // add custom key press rules for the 'Up' key
+ * const withPress = keyboard('Up', {
+ *   press: {
+ *     after: 1000,
+ *     interval: 2000
+ *   },
+ *   onPress: (e) => {
+ *     // 'press'
+ *     console.log(e.event);
+ *
+ *     console.log(`${e.keyName} pressed!`);
+ *   }
+ * });
+ *
+ * // what if we want press rules for ALL keys?
+ * // We again ignore the first argument.
+ * const allKeysWithPress = keyboard({
+ *   press: {
+ *     after: 1000,
+ *     interval: 2000
+ *   },
+ *
+ *   // catch all events (push+press+release)
+ *   onEvent: (e) => {
+ *     // ...
+ *   },
+ *
+ *   // catch 'down' events (push+press)
+ *   onDown: (e) => {
+ *     // ...
+ *   }
+ * });
+ *
+ * // -- start and stop listening to keys --
+ *
+ * // first listen to the key and store the returned object
+ * const myKey = keyboard('Up', { onPush: () => {} });
+ *
+ * // executing it free the event listener
+ * myKey();
+ * ```
  */
 export default {
-  create: createKeyboard
+  create() {
+    const kb = createKeyboard();
+
+    const callIfExist = (cb, evt) => cb && cb(evt);
+
+    const getArgs = (arg1, arg2) => {
+      if (Array.isArray(arg1) || typeof arg1 === 'string') {
+        return {
+          keys: arg1,
+          options: arg2
+        };
+      }
+
+      return {
+        options: arg1
+      };
+    };
+
+    return (...args) => {
+      const {
+        keys,
+        options = {}
+      } = getArgs(...args);
+
+      const {
+        onPush,
+        onRelease,
+        onPress,
+        onDown,
+        onEvent,
+        onClose,
+        ...keyOptions
+      } =  options;
+
+      const stopListening = kb(keys, keyOptions, (evt) => {
+        switch (evt.event) {
+          case 'push':
+            callIfExist(onPush, evt);
+            callIfExist(onDown, evt);
+            break;
+          case 'press':
+            callIfExist(onPress, evt);
+            callIfExist(onDown, evt);
+            break;
+          case 'release':
+            callIfExist(onRelease, evt);
+            break;
+        }
+        callIfExist(onEvent, evt);
+      });
+
+      return () => {
+        callIfExist(onClose);
+        stopListening();
+      };
+    };
+  }
 };

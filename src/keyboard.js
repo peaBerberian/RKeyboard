@@ -27,21 +27,20 @@ const EVENT_NAMES = {
  * Manage complex propagation rules (propagating the same key's events to
  * multiple listening elements).
  *
- * You can create multiple keyboards, each of them will have their own
- * propagation rules.
- *
  * @example
+ * ```js
  * import createKeyboard from './keyboard.js';
  *
- * // creating a keyboard
+ * // creating a keyboard with its own propagation rules
  * const keyboard = createKeyboard();
  *
- * // simple usecase -> doing something on the keys 'Up' and 'Down'
- * keyboard('Up', 'Down', (e) => {
+ * // listen to the 'Up' key events and trigger a callback as it is pushed /
+ * // released
+ * const upKey = keyboard('Up', (e) => {
  *    // either 'push' or 'release'
  *    console.log(e.event);
  *
- *    // 'Up' or 'Down' as they are the only keys listened to
+ *    // 'Up' as it is the only key listened to here
  *    console.log(e.keyName);
  *
  *    // Time the key has been pushed in ms (0 for 'push' event)
@@ -50,46 +49,61 @@ const EVENT_NAMES = {
  *    // ...
  * });
  *
- * // listen to all key events
- * keyboard((e) => {
+ * // Doing the same for multiple keys ('Up' OR 'Enter')
+ * const upAndEnter = keyboard(['Up', 'Enter'], () => {
  *   // ...
  * });
  *
- * // listen to key press event on Up key configured with `after` and
- * // `interval` options
- * keyboard('Up', { press: { after: 1000, interval: 2000 }, (e) => {
- *    // either 'push', 'release' or 'press'
- *    console.log(e.event);
- *
+ * // Doing the same for all keys (we simply ignore the first argument)
+ * const allKeys = keyboard((e) => {
  *   // ...
  * });
  *
- * // start and stop listening to the key Up
- * const stopListening = keyboard('Up');
- * stopListening();
+ * // add custom key press rules for the 'Up' key
+ * const withPress = keyboard('Up', {
+ *     press: {
+ *       after: 1000,
+ *       interval: 2000
+ *     }
+ *   },
+ *   (e) => {
+ *     // either 'push', 'release' or 'press'
+ *     console.log(e.event);
+ *
+ *     // ...
+ *   });
+ *
+ * // what if we want press rules for ALL keys?
+ * // We again ignore the first argument.
+ * const allKeysWithPress = keyboard({
+ *     press: {
+ *       after: 1000,
+ *       interval: 2000
+ *     }
+ *   },
+ *   () => {
+ *   });
+ *
+ * // -- start and stop listening to the key Up --
+ *
+ * // first listen to the key and store the returned object
+ * const myKey = keyboard('Up');
+ *
+ * // executing it free the event listener
+ * myKey();
+ * ```
  *
  * @returns {Function} Key handling function.
- *   Can take multiple arguments (see examples):
- *   - An optional n number of string(s) corresponding to the key names or key
- *     groups...
- *     If the first arguments are not keys, every key declared in the
- *     KEY_MAP will be considered.
- *
- *   - An optional object which corresponds to key options. Can have the
- *     following keys:
- *       - propagate {Boolean}: Optional propagate value. Equal to
- *         DEFAULT_PROPAGATE_VALUE by default.
- *       - press {Object}: Optional press settings.
- *
- *   - An optional function which corresponds to the callback called on key
- *     event.
- *     If not set, a noOp function will be used. You can still want that just
- *     to catch the keys (no propagation) without doing anything with it.
- *
- *   - A second optional function which corresponds to the callback called on
- *     event unsubscription.
- *     Can only be set if the precedent callback has also been set.
- *     If not set, a noOp function will be used.
+ * This function only rules are:
+ *   - it can take 3 arguments which can only be written in this order:
+ *      1. the key(s) as a string or as an array of strings
+ *      2. the options, as an object
+ *      3. the callback, as a function
+ *    - All of them can be ignored, undefined or null with the following
+ *      effect on each one:
+ *        1. all keys defined in the key map are catched
+ *        2. no option is set
+ *        3. no callback is set
  */
 export default () => {
   // Create new propagation layer from the KeyCatcher
@@ -98,20 +112,21 @@ export default () => {
   return (...args) => {
     // get arguments
     const {
-      keys,
+      keys = uniq(Object.values(config.KEY_MAP)),
       options = {},
-      callbackNext = () => {},
-      callbackClose = () => {}
-    } = _processListenArguments(...args);
+      callbackNext = () => {}
+    } = _processArguments(...args);
 
     // get after and interval options
     const {
       after: pressAfter,
       interval: pressInterval,
-      propagate
+      propagate,
+      combine: shouldCombineKeys = config.DEFAULT_COMBINE_VALUE
     } = _processOptions(options);
 
     // object used to know which key is pushed and when
+    // for each keycode
     const keysObj = Object.keys(config.KEY_MAP)
       .reduce((vals, key) => {
         vals[key] = {
@@ -240,6 +255,12 @@ export default () => {
         return;
       }
 
+      // if we do not want to combine keys
+      // clear press timeouts for every key already pressed.
+      if (!shouldCombineKeys) {
+        keysObj.forEach((k) => clearKeyTimeouts(k));
+      }
+
       // start press timeout + interval
       if (isSet(pressAfter)) {
 
@@ -253,7 +274,7 @@ export default () => {
           }
         }, pressAfter);
       }
-
+ 
       // set keyObj data
       keyObj.isPushed = true;
       keyObj.pushStart = Date.now();
@@ -290,8 +311,6 @@ export default () => {
     kc.register(keys, propagate, onEvent);
 
     return () => {
-      callbackClose();
-
       // clear timeout for every key
       for (const key of Object.keys(keysObj)) {
         clearKeyTimeouts(keysObj[key]);
@@ -304,41 +323,25 @@ export default () => {
 };
 
 /**
- * Retrieve arguments (keys + options).
+ * Retrieve arguments (keys + options + callback).
+ * undefined if not defined/null/ignored.
  * @param {...*} [args]
  * @return {Object} obj
- * @returns {Array} obj.keys
- * @returns {Object|undefined} [obj.options]
- * @returns {Function|undefined} callbackNext
- * @returns {Function|undefined} callbackClose
+ * @returns {Array.<string>|undefined} obj.keys - Every key names listened to.
+ * Groupings are browsed to only include real key names.
+ * @returns {Object|undefined} obj.options
+ * @returns {Function|undefined} obj.callbackNext
  */
-const _processListenArguments = function(...args) {
+const _processArguments = function(...args) {
   let keys; // key names
   let options;
   let callbackNext;
-  let callbackClose;
 
-  let lastArgId = args.length - 1;
-
-  if (typeof args[lastArgId] === 'function') {
-    const cb1 = args[lastArgId];
-    lastArgId--;
-    const cb2 = typeof args[lastArgId] === 'function' && args[lastArgId];
-
-    if (cb2) {
-      lastArgId--;
-      callbackNext = cb2;
-      callbackClose = cb1;
-    } else {
-      callbackNext = cb1;
-    }
-  }
-
-  if (typeof args[lastArgId] === 'object') {
-    options = args[lastArgId];
-    lastArgId --;
-  }
-
+  /**
+   * Browse Groupings to be sure only key names are returned.
+   * @param {Array.<string>} names
+   * @returns {Array.<string>}
+   */
   const getKeysFromNames = (names) =>
     names.reduce((kns, name) => {
       if (Object.keys(config.GROUPINGS).includes(name)) {
@@ -348,24 +351,39 @@ const _processListenArguments = function(...args) {
       return kns;
     }, []);
 
-  if (lastArgId >= 0) {
-    keys = getKeysFromNames(args.slice(0, lastArgId));
-  } else {
-    // else keys is every key in the keymap
-    keys = uniq(Object.values(config.KEY_MAP));
+  let argId = 0;
+  let arg = args[argId];
+
+  if (Array.isArray(arg)) {
+    keys = getKeysFromNames(arg);
+    argId++;
+    arg = args[argId];
+  } else if (typeof arg === 'string') {
+    keys = getKeysFromNames([arg]);
+    argId++;
+    arg = args[argId];
+  }
+
+  if (typeof arg === 'object' && arg !== null) {
+    options = arg;
+    argId++;
+    arg = args[argId];
+  }
+
+  if (typeof arg === 'function') {
+    callbackNext = arg;
   }
 
   return {
     keys,
     options,
     callbackNext,
-    callbackClose
   };
 };
 
 /**
  * Retrieve press options from the options arguments.
- * @param {Object} options - options as returned by _processListenArguments.
+ * @param {Object} options - options as returned by _processArguments.
  * @returns {Object} opts - options as returned by
  * @returns {Number} [opts.after] - Time (after a keydown event) after which
  * a key press is triggered. Without this param, no press is possible.;
@@ -376,7 +394,10 @@ const _processListenArguments = function(...args) {
  */
 const _processOptions = function(options) {
   let after, interval;
-  const propagate = options.propagate;
+  const {
+    propagate,
+    combine
+   } = options;
 
   if (isSet(options.press)) {
     if (typeof options.press.after === 'number') {

@@ -12,7 +12,7 @@ import createKeyboard from '../keyboard.js';
  * const kb = RxKeyboard.create();
  *
  * // start listening
- * rx.Observable.create(kb('Enter', 'Up', 'Down'))
+ * rx.Observable.create(kb(['Enter', 'Up', 'Down']))
  *   .subscribe((e) => {
  *     // ...
  *   });
