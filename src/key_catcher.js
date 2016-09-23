@@ -1,16 +1,22 @@
 /**
  * This file defines the KeyCatcher function allowing anyone to register
  * callbacks which can be triggered when a keyup / keydown event is received
- *for specific keys.
+ * for specific keys.
  *
- * It also manages propagation rules when multiple callbacks are registered on
- * the same KeyCatcher call.
+ * It manages propagation rules when multiple callbacks are registered for
+ * the same keys and reEmitting rules to re-emit a keydown when the registration
+ * was done after the key was initially pushed.
  *
  * This file can be imported and used directly for key management.
  */
 
 import uniq from './misc/uniq.js';
-import { addKeyEventListener, removeKeyEventListener } from './events.js';
+import {
+  addKeyEventListener,
+  removeKeyEventListener,
+  KEYCODES_PUSHED
+} from './events.js';
+
 import config from './config.js';
 
 /**
@@ -137,7 +143,7 @@ export default () => {
   /**
    * Link callbacks to their specific reEmit rules.
    * Added at registration.
-   * Comes very handy when unregistering a callback and checking if the new 
+   * Comes very handy when unregistering a callback and checking if the new
    * top for a specific keyName has reEmit rules.
    * @type WeakMap
    */
