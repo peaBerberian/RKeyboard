@@ -79,10 +79,12 @@ const keyDownCallbacks = [];
  */
 const keyUpCallbacks = [];
 
-const listen = (keyCodes) => {
+const listen = (keyCodes, { preventDefault } = {}) => {
   // keep track of which callbacks were added through this listen call
   const localKeyDownCallbacks = [];
   const localKeyUpCallbacks = [];
+
+  let isClosed = false;
 
   /**
    * Add new callback for a 'keydown' event on a webapp key
@@ -154,8 +156,33 @@ const listen = (keyCodes) => {
     }
   };
 
+  const removeAllListeners = () => {
+    for (let i = localKeyDownCallbacks.length - 1; i >= 0; i--) {
+      const indexOf =
+        keyDownCallbacks.indexOf(localKeyDownCallbacks[i]);
+      localKeyDownCallbacks.splice(i, 1);
+      keyDownCallbacks.splice(indexOf, 1);
+    }
+    for (let i = localKeyUpCallbacks.length - 1; i >= 0; i--) {
+      const indexOf =
+        keyUpCallbacks.indexOf(localKeyUpCallbacks[i]);
+      localKeyUpCallbacks.splice(i, 1);
+      keyUpCallbacks.splice(indexOf, 1);
+    }
+  };
+
+  const preventDefaultCallback = evt => evt.preventDefault();
+  if (preventDefault) {
+    document.addEventListener('keydown', preventDefaultCallback);
+    document.addEventListener('keyup', preventDefaultCallback);
+  }
+
   return {
     on(event, callback) {
+      if (isClosed && preventDefault) {
+        document.addEventListener('keydown', preventDefaultCallback);
+        document.addEventListener('keyup', preventDefaultCallback);
+      }
       switch (event) {
         case 'keydown':
           addKeyDownListener(callback);
@@ -175,6 +202,13 @@ const listen = (keyCodes) => {
         case 'keyup':
           removeKeyUpListener(callback);
       }
+    },
+
+    close() {
+      removeAllListeners();
+      document.removeEventListener('keydown', preventDefaultCallback);
+      document.removeEventListener('keyup', preventDefaultCallback);
+      isClosed = true;
     }
   };
 };
@@ -185,10 +219,10 @@ const listen = (keyCodes) => {
  *
  * @param {Number} keyCode
  */
-const triggerKeyDownEvent = (keyCode) => {
+const triggerKeyDownEvent = (evt, keyCode) => {
   keyDownCallbacks.forEach((kdc) => {
     if (kdc.keyCodes.includes(keyCode)) {
-      kdc.callback(keyCode);
+      kdc.callback.call(evt, keyCode);
     }
   });
 };
@@ -199,21 +233,12 @@ const triggerKeyDownEvent = (keyCode) => {
  *
  * @param {Number} keyCode
  */
-const triggerKeyUpEvent = (keyCode) => {
+const triggerKeyUpEvent = (evt, keyCode) => {
   keyUpCallbacks.forEach((kuc) => {
     if (kuc.keyCodes.includes(keyCode)) {
-      kuc.callback(keyCode);
+      kuc.callback.call(evt, keyCode);
     }
   });
-};
-
-/**
- * Trigger callbacks defined for the keyup event.
- * @param {Number} keyCode
- */
-const triggerKeyupCallbacks = (keyCode) => {
-  // call every callbacks related to this key
-  triggerKeyUpEvent(keyCode);
 };
 
 /**
@@ -236,7 +261,7 @@ const onKeyDown = (evt) => {
   addKeyPushedToArray(keyCode);
 
   // start sending keydown events
-  triggerKeyDownEvent(keyCode);
+  triggerKeyDownEvent(evt, keyCode);
 };
 
 /**
@@ -253,7 +278,7 @@ const onKeyUp = (evt) => {
   removeKeyPushedFromArray(keyCode);
 
   // send keyup event
-  triggerKeyupCallbacks(keyCode);
+  triggerKeyUpEvent(evt, keyCode);
 };
 
 /**

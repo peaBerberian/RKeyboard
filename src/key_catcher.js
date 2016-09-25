@@ -75,10 +75,16 @@ export default (opt = {}) => {
   const defaultPropagate =
     opt.propagate || defaultConfig.DEFAULT_PROPAGATE_VALUE;
 
+  const preventDefault =
+    opt.preventDefault || defaultConfig.DEFAULT_PREVENT_DEFAULT;
+
   const defaultReemit =
     opt.reEmit || defaultConfig.DEFAULT_REEMIT_VALUE;
 
-  const listener = listen(Object.keys(keyMap).map(x => +x));
+
+  const listener = listen(Object.keys(keyMap).map(x => +x), {
+    preventDefault
+  });
 
   /**
    * Here we define internal mechanisms to precisely manage propagation
@@ -598,6 +604,8 @@ export default (opt = {}) => {
       unregisterKeyListener(keyName);
     }
   };
+
+  ret.close = () => listener.close();
 
   return ret;
 };

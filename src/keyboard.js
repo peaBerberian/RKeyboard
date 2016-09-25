@@ -120,272 +120,282 @@ export default (opt = {}) => {
   const defaultReemit =
     opt.reEmit || defaultConfig.DEFAULT_REEMIT_TIMEOUT;
 
+  const preventDefault =
+    opt.preventDefault || defaultConfig.DEFAULT_PREVENT_DEFAULT;
+
   // Create new propagation layer from the KeyCatcher
   const kc = KeyCatcher({
     keyMap,
     propagate: defaultPropagate,
-    reEmit: defaultReemit
+    reEmit: defaultReemit,
+    preventDefault
   });
 
   // We might need to listen events in our keyMap directly for
   // 'Combine' rules
   const listener = listen(Object.keys(keyMap).map(x => +x));
 
-  return (...args) => {
-    // get arguments
-    const {
-      keys = uniq(Object.values(keyMap)),
-      options = {},
-      callbackNext = () => {}
-    } = _processArguments(groupings, ...args);
+  return {
+    listen(...args) {
+      // get arguments
+      const {
+        keys = uniq(Object.values(keyMap)),
+        options = {},
+        callbackNext = () => {}
+      } = _processArguments(groupings, ...args);
 
-    // get after and interval options
-    const {
-      pressIntervals,
-      reEmit: reEmitTimeout = defaultReemit,
-      propagate: shouldPropagate = defaultPropagate,
-      combine: shouldCombineKeys = defaultCombine
-    } = _processOptions(options);
+      // get after and interval options
+      const {
+        pressIntervals,
+        reEmit: reEmitTimeout = defaultReemit,
+        propagate: shouldPropagate = defaultPropagate,
+        combine: shouldCombineKeys = defaultCombine
+      } = _processOptions(options);
 
-    // object used to know which key is pushed and when
-    // for each keycode
-    const keysObj = Object.keys(keyMap)
-      .reduce((vals, key) => {
-        vals[key] = {
-          // name of the key
-          keyName: keyMap[key],
+      // object used to know which key is pushed and when
+      // for each keycode
+      const keysObj = Object.keys(keyMap)
+        .reduce((vals, key) => {
+          vals[key] = {
+            // name of the key
+            keyName: keyMap[key],
 
-          // true if currently pushed
-          isPushed: false,
+            // true if currently pushed
+            isPushed: false,
 
-          // timestamp of push start (null if not currently pushed)
-          pushStart: null,
+            // timestamp of push start (null if not currently pushed)
+            pushStart: null,
 
-          // store a setInterval's return for press events
-          interval: null,
+            // store a setInterval's return for press events
+            interval: null,
 
-          // store setTimeouts return for press events
-          timeouts: []
-        };
+            // store setTimeouts return for press events
+            timeouts: []
+          };
 
-        return vals;
-      }, {});
+          return vals;
+        }, {});
 
-    /**
-     * Clear current timeouts and/or interval for a specific key object.
-     * @param {Object} keyObj
-     * @param {Number|null} keyObj.timeouts
-     * @param {Number|null} keyObj.interval
-     */
-    const clearKeyTimeouts = ({ timeouts, interval }) => {
-      timeouts.forEach(t => clearTimeout(t));
+      /**
+       * Clear current timeouts and/or interval for a specific key object.
+       * @param {Object} keyObj
+       * @param {Number|null} keyObj.timeouts
+       * @param {Number|null} keyObj.interval
+       */
+      const clearKeyTimeouts = ({ timeouts, interval }) => {
+        timeouts.forEach(t => clearTimeout(t));
 
-      if (interval) {
-        clearInterval(interval);
-      }
-    };
-
-    /**
-     * Send 'push' event for the given key object (property from the keysObj
-     * object).
-     * @param {Object} keyObj
-     */
-    const sendPushEvent = (ctx, { keyName }) => {
-      callbackNext.call(ctx, {
-        keyName,
-        event: EVENT_NAMES.KEY_DOWN,
-        timepress: 0
-      });
-    };
-
-    /**
-     * Send 'press' event for the given key object (property from the keysObj
-     * object).
-     * @param {Object} keyObj
-     */
-    const sendPressEvent = (ctx, { keyName, pushStart }) => {
-      callbackNext.call(ctx, {
-        keyName,
-        event: EVENT_NAMES.KEY_PRESS,
-        timepress: pushStart ? (Date.now() - pushStart) : 0
-      });
-    };
-
-    /**
-     * Send 'release' event for the given key object (property from the keysObj
-     * object).
-     * @param {Object} keyObj
-     */
-    const sendReleaseEvent = (ctx, { keyName, pushStart }) => {
-      callbackNext.call(ctx, {
-        keyName,
-        event: EVENT_NAMES.KEY_UP,
-        timepress: pushStart ? (Date.now() - pushStart) : 0
-      });
-    };
-
-    /**
-     * Generic callback for new key events.
-     * Given to the registerCatcher function.
-     *
-     * If the key is listened to, dispatch the event to:
-     *   - onDownEvent if a 'keydown' event has been received
-     *   - onUpEvent if a 'keyup' event has been received
-     * with the right key object (element from the keysObj array).
-     *
-     * @see registerCatcher
-     * @see onDownEvent
-     * @see onUpEvent
-     * @param {Object} evt
-     * @param {string} evt.type - 'keyup' or 'keydown'
-     * @param {string} evt.keyName
-     * @param {Number} evt.keyCode
-     */
-    const onEvent = function (evt) {
-
-      // if keyName is not listened to, abort
-      if (!keys.includes(evt.keyName)) {
-        return;
-      }
-
-      switch (evt.type) {
-        case 'keydown':
-          onDownEvent(this, evt);
-          break;
-        case 'keyup':
-          onUpEvent(this, evt);
-          break;
-      }
-    };
-
-    /**
-     * Callback called when a 'keydown' event was received for a particular
-     * key object (keyObj param).
-     *
-     * If the key is not already pushed:
-     *   1. Begin timeouts and/or interval for press events if specified.
-     *   2. Set right data on the key object
-     *   3. Trigger a push event for the key
-     * @param {Object} kcCtx - The keyCatcher's context. Used for
-     * stopPropagation and pushedKeyCodes.
-     * @param {Object} keyObj - The key object
-     */
-    const onDownEvent = (kcCtx, { keyCode }) => {
-      const keyObj = keysObj[keyCode];
-
-      // if it is already pushed, abort
-      if (keyObj.isPushed) {
-        return;
-      }
-
-      // if this keydown is not for the last key pushed, abort.
-      // (registration can be done after some keys have been pushed, and we
-      // could have set a reEmit timeout)
-      if (KEYCODES_PUSHED[KEYCODES_PUSHED.length - 1] !== keyCode) {
-        return;
-      }
-
-      // context with which the callback will be called
-      const cbCtx = { stopPropagation: kcCtx.stopPropagation };
-
-      // start press timeouts + interval
-      if (isSet(pressIntervals)) {
-        const constructTimeout = (pressInterval) => {
-          return setTimeout(() => {
-            // 1 - clear possible previous interval
-            if (keyObj.interval) {
-              clearInterval(keyObj.interval);
-            }
-
-            // 2 - send initial press event
-            sendPressEvent(cbCtx, keyObj);
-
-            // 3 - if an interval is set do a setInterval for key presses.
-            // Reset keyObj.interval otherwhise
-            if (isSet(pressInterval.interval)) {
-              keyObj.interval = setInterval(() => {
-                sendPressEvent(cbCtx, keyObj);
-              }, pressInterval.interval);
-            } else {
-              keyObj.interval = 0;
-            }
-
-          }, pressInterval.after);
-        };
-
-        // launch every interval here (doing every setTimeout synchronously is
-        // more reliable than doing one by one)
-        pressIntervals.forEach(pressInterval => {
-          keyObj.timeouts.push(constructTimeout(pressInterval));
-        });
-      }
-
-      // set keyObj data
-      keyObj.isPushed = true;
-      keyObj.pushStart = Date.now();
-
-      // send initial push event
-      sendPushEvent(cbCtx, keyObj);
-    };
-
-    /**
-     * Callback called when a 'keyup' event was received for a particular
-     * key object (keyObj param).
-     *
-     * If the key is considered already pushed:
-     *   1. clear timeouts and/or interval for press events if specified.
-     *   2. Trigger a release event for the key
-     *   2. Set right data on the key object
-     * @param {Object} keyObj - The key object
-     */
-    const onUpEvent = (kcCtx, { keyCode }) => {
-      const keyObj = keysObj[keyCode];
-
-      // if no push event has been received, don't send release events
-      // (this can happen if the key was pushed while we were not listening)
-      if (!keyObj.isPushed) {
-        return;
-      }
-
-      clearKeyTimeouts(keyObj);
-
-      // context with which the callback will be called
-      const cbCtx = { stopPropagation: kcCtx.stopPropagation };
-
-      sendReleaseEvent(cbCtx, keyObj);
-
-      keyObj.isPushed = false;
-      keyObj.pushStart = null;
-    };
-
-    // if we do not want to combine keys, on any keyCode keydown event,
-    // clear press timeouts for every key already pressed.
-    let onAnyKeyDown;
-    if (!shouldCombineKeys) {
-      onAnyKeyDown = () => {
-        Object.values(keysObj).forEach((k) => clearKeyTimeouts(k));
+        if (interval) {
+          clearInterval(interval);
+        }
       };
-      listener.on('keydown', onAnyKeyDown);
-    }
 
-    kc.register(keys, {
-      propagate: shouldPropagate,
-      reEmit: reEmitTimeout
-    }, onEvent);
+      /**
+       * Send 'push' event for the given key object (property from the keysObj
+       * object).
+       * @param {Object} keyObj
+       */
+      const sendPushEvent = (ctx, { keyName }) => {
+        callbackNext.call(ctx, {
+          keyName,
+          event: EVENT_NAMES.KEY_DOWN,
+          timepress: 0
+        });
+      };
 
-    return () => {
+      /**
+       * Send 'press' event for the given key object (property from the keysObj
+       * object).
+       * @param {Object} keyObj
+       */
+      const sendPressEvent = (ctx, { keyName, pushStart }) => {
+        callbackNext.call(ctx, {
+          keyName,
+          event: EVENT_NAMES.KEY_PRESS,
+          timepress: pushStart ? (Date.now() - pushStart) : 0
+        });
+      };
+
+      /**
+       * Send 'release' event for the given key object (property from the keysObj
+       * object).
+       * @param {Object} keyObj
+       */
+      const sendReleaseEvent = (ctx, { keyName, pushStart }) => {
+        callbackNext.call(ctx, {
+          keyName,
+          event: EVENT_NAMES.KEY_UP,
+          timepress: pushStart ? (Date.now() - pushStart) : 0
+        });
+      };
+
+      /**
+       * Generic callback for new key events.
+       * Given to the registerCatcher function.
+       *
+       * If the key is listened to, dispatch the event to:
+       *   - onDownEvent if a 'keydown' event has been received
+       *   - onUpEvent if a 'keyup' event has been received
+       * with the right key object (element from the keysObj array).
+       *
+       * @see registerCatcher
+       * @see onDownEvent
+       * @see onUpEvent
+       * @param {Object} evt
+       * @param {string} evt.type - 'keyup' or 'keydown'
+       * @param {string} evt.keyName
+       * @param {Number} evt.keyCode
+       */
+      const onEvent = function (evt) {
+
+        // if keyName is not listened to, abort
+        if (!keys.includes(evt.keyName)) {
+          return;
+        }
+
+        switch (evt.type) {
+          case 'keydown':
+            onDownEvent(this, evt);
+            break;
+          case 'keyup':
+            onUpEvent(this, evt);
+            break;
+        }
+      };
+
+      /**
+       * Callback called when a 'keydown' event was received for a particular
+       * key object (keyObj param).
+       *
+       * If the key is not already pushed:
+       *   1. Begin timeouts and/or interval for press events if specified.
+       *   2. Set right data on the key object
+       *   3. Trigger a push event for the key
+       * @param {Object} kcCtx - The keyCatcher's context. Used for
+       * stopPropagation and pushedKeyCodes.
+       * @param {Object} keyObj - The key object
+       */
+      const onDownEvent = (kcCtx, { keyCode }) => {
+        const keyObj = keysObj[keyCode];
+
+        // if it is already pushed, abort
+        if (keyObj.isPushed) {
+          return;
+        }
+
+        // if this keydown is not for the last key pushed, abort.
+        // (registration can be done after some keys have been pushed, and we
+        // could have set a reEmit timeout)
+        if (KEYCODES_PUSHED[KEYCODES_PUSHED.length - 1] !== keyCode) {
+          return;
+        }
+
+        // context with which the callback will be called
+        const cbCtx = { stopPropagation: kcCtx.stopPropagation };
+
+        // start press timeouts + interval
+        if (isSet(pressIntervals)) {
+          const constructTimeout = (pressInterval) => {
+            return setTimeout(() => {
+              // 1 - clear possible previous interval
+              if (keyObj.interval) {
+                clearInterval(keyObj.interval);
+              }
+
+              // 2 - send initial press event
+              sendPressEvent(cbCtx, keyObj);
+
+              // 3 - if an interval is set do a setInterval for key presses.
+              // Reset keyObj.interval otherwhise
+              if (isSet(pressInterval.interval)) {
+                keyObj.interval = setInterval(() => {
+                  sendPressEvent(cbCtx, keyObj);
+                }, pressInterval.interval);
+              } else {
+                keyObj.interval = 0;
+              }
+
+            }, pressInterval.after);
+          };
+
+          // launch every interval here (doing every setTimeout synchronously is
+          // more reliable than doing one by one)
+          pressIntervals.forEach(pressInterval => {
+            keyObj.timeouts.push(constructTimeout(pressInterval));
+          });
+        }
+
+        // set keyObj data
+        keyObj.isPushed = true;
+        keyObj.pushStart = Date.now();
+
+        // send initial push event
+        sendPushEvent(cbCtx, keyObj);
+      };
+
+      /**
+       * Callback called when a 'keyup' event was received for a particular
+       * key object (keyObj param).
+       *
+       * If the key is considered already pushed:
+       *   1. clear timeouts and/or interval for press events if specified.
+       *   2. Trigger a release event for the key
+       *   2. Set right data on the key object
+       * @param {Object} keyObj - The key object
+       */
+      const onUpEvent = (kcCtx, { keyCode }) => {
+        const keyObj = keysObj[keyCode];
+
+        // if no push event has been received, don't send release events
+        // (this can happen if the key was pushed while we were not listening)
+        if (!keyObj.isPushed) {
+          return;
+        }
+
+        clearKeyTimeouts(keyObj);
+
+        // context with which the callback will be called
+        const cbCtx = { stopPropagation: kcCtx.stopPropagation };
+
+        sendReleaseEvent(cbCtx, keyObj);
+
+        keyObj.isPushed = false;
+        keyObj.pushStart = null;
+      };
+
+      // if we do not want to combine keys, on any keyCode keydown event,
+      // clear press timeouts for every key already pressed.
+      let onAnyKeyDown;
       if (!shouldCombineKeys) {
-        listener.off('keydown', onAnyKeyDown);
+        onAnyKeyDown = () => {
+          Object.values(keysObj).forEach((k) => clearKeyTimeouts(k));
+        };
+        listener.on('keydown', onAnyKeyDown);
       }
 
-      // clear timeouts for every key
-      for (const key of Object.keys(keysObj)) {
-        clearKeyTimeouts(keysObj[key]);
-      }
+      kc.register(keys, {
+        propagate: shouldPropagate,
+        reEmit: reEmitTimeout
+      }, onEvent);
 
-      // clear catchers
-      kc.unregister(keys, onEvent);
-    };
+      return () => {
+        if (!shouldCombineKeys) {
+          listener.off('keydown', onAnyKeyDown);
+        }
+
+        // clear timeouts for every key
+        for (const key of Object.keys(keysObj)) {
+          clearKeyTimeouts(keysObj[key]);
+        }
+
+        // clear catchers
+        kc.unregister(keys, onEvent);
+      };
+    },
+
+    close() {
+      kc.close();
+    }
   };
 };
 

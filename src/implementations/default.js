@@ -92,8 +92,8 @@ import createKeyboard from '../keyboard.js';
  * ```
  */
 export default {
-  create() {
-    const kb = createKeyboard();
+  create(opt) {
+    const kb = createKeyboard(opt);
 
     const callIfExist = (cb, evt) => cb && cb(evt);
 
@@ -110,43 +110,49 @@ export default {
       };
     };
 
-    return (...args) => {
-      const {
-        keys,
-        options = {}
-      } = getArgs(...args);
+    return {
+      listen(...args) {
+        const {
+          keys,
+          options = {}
+        } = getArgs(...args);
 
-      const {
-        onPush,
-        onRelease,
-        onPress,
-        onDown,
-        onEvent,
-        onClose,
-        ...keyOptions
-      } =  options;
+        const {
+          onPush,
+          onRelease,
+          onPress,
+          onDown,
+          onEvent,
+          onClose,
+          ...keyOptions
+        } =  options;
 
-      const stopListening = kb(keys, keyOptions, (evt) => {
-        switch (evt.event) {
-          case 'push':
-            callIfExist(onPush, evt);
-            callIfExist(onDown, evt);
-            break;
-          case 'press':
-            callIfExist(onPress, evt);
-            callIfExist(onDown, evt);
-            break;
-          case 'release':
-            callIfExist(onRelease, evt);
-            break;
-        }
-        callIfExist(onEvent, evt);
-      });
+        const stopListening = kb.listen(keys, keyOptions, (evt) => {
+          switch (evt.event) {
+            case 'push':
+              callIfExist(onPush, evt);
+              callIfExist(onDown, evt);
+              break;
+            case 'press':
+              callIfExist(onPress, evt);
+              callIfExist(onDown, evt);
+              break;
+            case 'release':
+              callIfExist(onRelease, evt);
+              break;
+          }
+          callIfExist(onEvent, evt);
+        });
 
-      return () => {
-        callIfExist(onClose);
-        stopListening();
-      };
+        return () => {
+          callIfExist(onClose);
+          stopListening();
+        };
+      },
+
+      close() {
+        kb.close();
+      }
     };
   }
 };

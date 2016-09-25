@@ -223,5 +223,7 @@ export default {
    *     Note: whether multiple keys are re-sent also depends on the
    *     'combine' option.
    */
-  DEFAULT_REEMIT_VALUE: 500
+  DEFAULT_REEMIT_VALUE: 500,
+
+  DEFAULT_PREVENT_DEFAULT: false
 };
