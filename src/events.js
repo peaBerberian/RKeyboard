@@ -171,7 +171,11 @@ const listen = (keyCodes, { preventDefault } = {}) => {
     }
   };
 
-  const preventDefaultCallback = evt => evt.preventDefault();
+  const preventDefaultCallback = evt => {
+    if (keyCodes.includes(getKeyCode(evt))) {
+      evt.preventDefault();
+    }
+  };
   if (preventDefault) {
     document.addEventListener('keydown', preventDefaultCallback);
     document.addEventListener('keyup', preventDefaultCallback);
@@ -219,10 +223,10 @@ const listen = (keyCodes, { preventDefault } = {}) => {
  *
  * @param {Number} keyCode
  */
-const triggerKeyDownEvent = (evt, keyCode) => {
+const triggerKeyDownEvent = (keyCode) => {
   keyDownCallbacks.forEach((kdc) => {
     if (kdc.keyCodes.includes(keyCode)) {
-      kdc.callback.call(evt, keyCode);
+      kdc.callback(keyCode);
     }
   });
 };
@@ -233,12 +237,18 @@ const triggerKeyDownEvent = (evt, keyCode) => {
  *
  * @param {Number} keyCode
  */
-const triggerKeyUpEvent = (evt, keyCode) => {
+const triggerKeyUpEvent = (keyCode) => {
   keyUpCallbacks.forEach((kuc) => {
     if (kuc.keyCodes.includes(keyCode)) {
-      kuc.callback.call(evt, keyCode);
+      kuc.callback(keyCode);
     }
   });
+};
+
+const getKeyCode = (evt) => {
+  const { keyCode } = evt;
+  return keyCode != null ?
+    keyCode : evt.which;
 };
 
 /**
@@ -246,10 +256,7 @@ const triggerKeyUpEvent = (evt, keyCode) => {
  * @param {Object} evt
  */
 const onKeyDown = (evt) => {
-  let { keyCode } = evt;
-  if (keyCode == null) {
-    keyCode = evt.which;
-  }
+  const keyCode = getKeyCode(evt);
 
   // if the key is already pushed, quit, we have our own mean for consecutive
   // keydowns (@see CONSECUTIVE_KEYDOWNS_OBJECT)
@@ -261,7 +268,7 @@ const onKeyDown = (evt) => {
   addKeyPushedToArray(keyCode);
 
   // start sending keydown events
-  triggerKeyDownEvent(evt, keyCode);
+  triggerKeyDownEvent(keyCode);
 };
 
 /**
@@ -269,16 +276,13 @@ const onKeyDown = (evt) => {
  * @param {Object} evt
  */
 const onKeyUp = (evt) => {
-  let { keyCode } = evt;
-  if (keyCode == null) {
-    keyCode = evt.which;
-  }
+  const keyCode = getKeyCode(evt);
 
   // Consider the key as released from there.
   removeKeyPushedFromArray(keyCode);
 
   // send keyup event
-  triggerKeyUpEvent(evt, keyCode);
+  triggerKeyUpEvent(keyCode);
 };
 
 /**
