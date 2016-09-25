@@ -11,13 +11,10 @@
  */
 
 import uniq from './misc/uniq.js';
-import {
-  addKeyEventListener,
-  removeKeyEventListener,
-  KEYCODES_PUSHED
-} from './events.js';
+import isSet from './misc/isSet.js';
+import listen, { KEYCODES_PUSHED } from './events.js';
 
-import config from './config.js';
+import defaultConfig from './config.js';
 
 /**
  * This is the KeyCatcher function.
@@ -31,11 +28,22 @@ import config from './config.js';
  * @example
  * const kc = KeyCatcher();
  *
- * const myFirstCallback = ({ type, keyName, keyCode }) =>
+ * const myFirstCallback = ({ type, keyName, keyCode }) => {
  *   // type: 'keydown' or 'keyup'
  *   // keyName: name of the key as defined in the keyMap
  *   // keyCode: keyCode of the key pressed
  *   console.log(type, keyName, keyCode);
+ *
+ *   // you can directly stop the propagation to the next listening callback
+ *   // this way
+ *   if (keyName = 'Up') {
+ *     this.stopPropagation();
+ *   }
+ *
+ *   // you can obtain a list of all keyCodes in your key map currently pushed,
+ *   // in order (last element is the last pushed)
+ *   console.log(this.pushedKeyCodes); // Ex: [ 66, 24, 49 ]
+ * }
  *
  * const mySecondCallback = (evt) => doSomethingWithIt(evt);
  *
@@ -43,10 +51,10 @@ import config from './config.js';
  * kc.register(['Up', 'Down'], myFirstCallback);
  *
  * // this call will propagate 'Up' key events to the precedent one
- * kc.register(['Up', 'Left'], true, mySecondCallback);
+ * kc.register(['Up', 'Left'], { propagate: true }, mySecondCallback);
  *
  * // this call will NOT propagate 'Down' key events to the precedent one
- * kc.register(['Down', 'Exit'], false, mySecondCallback);
+ * kc.register(['Down', 'Exit'], { propagate: false }, mySecondCallback);
  *
  * // unregister the first callback
  * kc.unregister(myFirstCallback);
@@ -60,7 +68,20 @@ import config from './config.js';
  * // unregister Exit now
  * kc.unregister(['Exit'], mySecondCallback);
  */
-export default () => {
+export default (opt = {}) => {
+
+  const keyMap = opt.keyMap || defaultConfig.KEY_MAP;
+
+  const defaultPropagate =
+    opt.propagate || defaultConfig.DEFAULT_PROPAGATE_VALUE;
+
+  const defaultReemit =
+    opt.reEmit || defaultConfig.DEFAULT_REEMIT_VALUE;
+
+  const defaultCombine =
+    opt.combine || defaultConfig.DEFAULT_COMBINE_VALUE;
+
+  const listener = listen(Object.keys(keyMap).map(x => +x));
 
   /**
    * Here we define internal mechanisms to precisely manage propagation
@@ -74,18 +95,18 @@ export default () => {
    *
    * Imagine that you want to listen to the key "Up", to perform an action when
    * someone push it:
-   *   1. A specific callback for your remote.listen call will be added to the
+   *   1. A specific callback for your keyboard call will be added to the
    *   layers.Up Array, which will look now like that:
    *   layers -> { Up: [ [a] ] } (where 'a' is your callback)
    *
-   *   3. Now let's imagine that you got another remote.listen in another
+   *   3. Now let's imagine that you got another keyboard call in another
    *   component and you don't don't want the events to propagate as long as this
    *   component is active.
    *   You will get add another callback, but the layers object will now
    *   change to something like:
    *   layers -> { Up: [ [a], [b] ] } (where 'b' is your new callback)
    *
-   *   4. Now, we have another component which do another remote.listen call
+   *   4. Now, we have another component which do another keyboard call
    *   but which want to propagate the call. The 'b' callback will thus be called,
    *   but not the 'a' one as the 'b' one does not propagate. The layers
    *   object will look something like that:
@@ -123,7 +144,7 @@ export default () => {
    *
    * Changes:
    *   - each times a keyName's top callback changes.
-   *   - each times a keyUp is received for one of the keyCodes
+   *   - each times a keyup is received for one of the keyCodes
    * @type Object
    */
   const keyCodesMaintained = {};
@@ -148,6 +169,8 @@ export default () => {
    * @type WeakMap
    */
   const reEmitTimeouts = new WeakMap();
+
+  const listenedKeyCodesPushed = [];
 
   /**
    * Return list of active callbacks for the corresponding key.
@@ -174,7 +197,7 @@ export default () => {
   /**
    * Trigger every catcher callbacks for a particular key.
    * @param {string} type - 'keydown' or 'keyup'
-   * @param {string} keyName - Key name as registered in the KeyMap. Can directly
+   const @param {string} keyName - Key name as registered in the KeyMap. Can directly
    * be retrieved from the keyCode but added there for simplicity.
    * @param {Number} keyCode - KeyCode for the corresponding key. Still needed as
    * an id, in case multiple keyCodes have the same keyName.
@@ -191,9 +214,14 @@ export default () => {
     for (let i = callbacks.length - 1; i >= 0; i--) {
       /**
        * Context given.
-       * Allow to stopPropagation when the user want.
+       * Allow to stopPropagation when the user want, and signal supplementary
+       * informations like the list of keyCodes currently pushed.
+       * TODO find a better way for the last point, this is ugly.
        */
       const obj = {
+        /**
+         * Callback which stop propagating the current event.
+         */
         stopPropagation: () => {
           i = -1;
         }
@@ -216,7 +244,29 @@ export default () => {
    * @param {string} keyEvent.keyName
    * @param {Number} keyEvent.keyCode
    */
-  const keyDownCallBack = ({ keyName, keyCode }) => {
+  const onDownEvent = (keyCode) => {
+    if (!combine) {  
+      // if this keydown is not for the last key pushed, abort.
+      // (registration can be done after some keys have been pushed, and we
+      // could have set a reEmit timeout)
+      if (KEYCODES_PUSHED[KEYCODES_PUSHED.length - 1] !== keyCode) {
+        return
+      }
+
+      if (listenedKeyCodesPushed.length) {
+        listenedKeyCodesPushed.forEach(keyCode => {
+          triggerCatchers('keyup', {
+            keyName: keyMap[keyCode],
+            keycode
+          });
+        });
+      }
+
+      listenedKeyCodesPushed.push(keyCode);
+      const keyName = keyMap[keyCode];
+    }
+
+    const keyName = keyMap[keyCode];
     triggerCatchers('keydown', keyName, keyCode);
   };
 
@@ -226,12 +276,24 @@ export default () => {
    * @param {string} keyEvent.keyName
    * @param {Number} keyEvent.keyCode
    */
-  const keyUpCallBack = ({ keyName, keyCode }) => {
-    // if the keyCode was maintained (for reEmitting the event),
-    // stop doing it now that it's released.
-    const indexOf = keyCodesMaintained[keyName].indexOf(keyCode);
-    if (indexOf >= 0) {
-      keyCodesMaintained[keyName].splice(indexOf, 1);
+  const keyUpCallback = (keyCode) => {
+    const keyName = keyMap[keyCode];
+
+    {
+      // if the keyCode was maintained (for reEmitting the event),
+      // stop doing it now that it's released.
+      const indexOfMaintained = keyCodesMaintained[keyName] &&
+        keyCodesMaintained[keyName].indexOf(keyCode);
+      if (indexOfMaintained >= 0) {
+        keyCodesMaintained[keyName].splice(indexOfMaintained, 1);
+      }
+    }
+
+    {
+      const indexOfListened = listenedKeyCodesPushed.indexOf(keyCode);
+      if (indexOfListened >= 0) {
+        listenedKeyCodesPushed[keyName].splice(indexOfListened, 1);
+      }
     }
 
     triggerCatchers('keyup', keyName, keyCode);
@@ -255,8 +317,7 @@ export default () => {
    *     If not set, every single key set in your keyMap will be listened to.
    *
    *   - propagate {Boolean} (optional) - Whether the call should be propagated.
-   *     If not set, the default value as set in the config will be taken
-   *     instead.
+   *     If not set, the default value will be taken instead.
    *
    *   - callback {Function} - The called callback once the corresponding key
    *     has been pushed. You can also set this callback as a second argument if
@@ -297,33 +358,21 @@ export default () => {
   ret.register = (...args) => {
 
     const processArguments = (...args) => {
-      let keyNames, propagate, callback;
+      let keyNames, propagate, combine, reEmit, callback;
 
       let argCounter = 0;
 
-      // First optional argument, keyName
+      // First optional argument, keyNames
       if (Array.isArray(args[0])) {
-
-        // check if each key is in a grouping, add each single key wanted to
-        // keyNames
-        keyNames = args[0].reduce((kns, name) => {
-          if (Object.keys(config.GROUPINGS).includes(name)) {
-            return kns.concat(config.GROUPINGS[name]);
-          }
-          kns.push(name);
-          return kns;
-        }, []);
+        keyNames = args[0];
         argCounter++;
-      } else {
-        // take all the keys
-        keyNames = uniq(Object.values(config.KEY_MAP));
       }
 
-      // Second/first argument: propagate
-      if (typeof args[argCounter] === 'boolean') {
-        propagate = args[argCounter];
-      } else {
-        propagate = config.DEFAULT_PROPAGATE_VALUE;
+      // Second/first argument: options
+      if (isSet(args[argCounter])) {
+        propagate = args[argCounter].propagate;
+        reEmit = args[argCounter].reEmit;
+        combine = args[argCounter].combine;
       }
 
       // Last argument: callback
@@ -334,6 +383,8 @@ export default () => {
       return {
         keyNames,
         propagate,
+        reEmit,
+        combine,
         callback
       };
     };
@@ -345,8 +396,8 @@ export default () => {
     const registerKeyListener = (keyName) => {
       // If no key are registered, link trigger to events
       if (!Object.keys(layers).length) {
-        addKeyEventListener('keydown', keyDownCallBack);
-        addKeyEventListener('keyup', keyUpCallBack);
+        listener.on('keydown', onDownEvent);
+        listener.on('keyup', keyUpCallback);
       }
 
       // If you add a new key listener, you might want to re-emit
@@ -361,18 +412,31 @@ export default () => {
         keyCodesMaintained[keyName] = [];
       }
       if (reEmit >= 0) {
-        keyCodesMaintained[keyName] = [];
         reEmitTimeouts.set(callback, reEmit);
-        KEYCODES_PUSHED.forEach(keyCode => {
-          if (KEY_MAP[keyCode] === keyName) {
-            keyCodesMaintained[keyName].push(keyCode);
-          }
-        });
-        reEmitTimeoutIds[keyName] = setTimeout(() => {
-          keyCodesMaintained.forEach(keyCode => {
-            keyDownCallBack({ keyName, keyCode });
+
+        // if some keys are pushed
+        if (KEYCODES_PUSHED.length) {
+          KEYCODES_PUSHED.forEach(keyCode => {
+            if (keyMap[keyCode] === keyName) {
+              if (!keyCodesMaintained[keyName]) {
+                keyCodesMaintained[keyName] = [];
+              }
+              keyCodesMaintained[keyName].push(keyCode);
+            }
           });
-        },reEmit);
+
+          const kcsm = keyCodesMaintained[keyName];
+
+          // if our wanted key is already pressed
+          if (kcsm && kcsm.length) {
+            reEmitTimeoutIds[keyName] = setTimeout(() => {
+              keyCodesMaintained[keyName].forEach(keyCode => {
+                onDownEvent(keyCode);
+              });
+              delete keyCodesMaintained[keyName];
+            }, reEmit);
+          }
+        }
       }
 
       const keyArr = layers[keyName];
@@ -403,8 +467,10 @@ export default () => {
     };
 
     const {
-      keyNames,
-      propagate,
+      keyNames = uniq(Object.values(keyMap)),
+      propagate = defaultPropagate,
+      reEmit = defaultReemit,
+      combine = defaultCombine,
       callback
     } = processArguments(...args);
 
@@ -445,20 +511,12 @@ export default () => {
     const processArguments = (...args) => {
       let keyNames, callback;
 
-      // First optional argument, keyName
+      // First optional argument, keyNames
       if (Array.isArray(args[0])) {
-        // check if each key is in a grouping, add each single key wanted to
-        // keyNames
-        keyNames = args[0].reduce((kns, name) => {
-          if (Object.keys(config.GROUPINGS).includes(name)) {
-            return kns.concat(config.GROUPINGS[name]);
-          }
-          kns.push(name);
-          return kns;
-        }, []);
+        keyNames = args[0];
       } else {
         // take all the keys
-        keyNames = uniq(Object.values(config.KEY_MAP));
+        keyNames = uniq(Object.values(keyMap));
       }
 
       // Last argument: callback
@@ -490,6 +548,7 @@ export default () => {
         const indexOf = callbackArray.indexOf(callback);
         if (indexOf >= 0) {
 
+          // TODO Re-facto that part, it hurts
           // if we're speaking about the last of the last elements
           // we should clear our reEmitTimeoutId for this key,
           // and we may re-subscribe the precedent one if it wants
@@ -504,23 +563,36 @@ export default () => {
                 reEmitTimeoutIds[keyName] = 0;
               }
 
-              // the next callback might want reEmitting
-              const nextCallback = callbackArray[callbackArray.length - 2];
-              if (nextCallback) {
-                const reEmitTimeout = reEmitTimeouts.get(nextCallback);
-                keyCodesMaintained[keyName] = [];
+              // if some keys are pushed
+              if (KEYCODES_PUSHED.length) {
 
-                if (reEmitTimeout >= 0) {
-                  KEYCODES_PUSHED.forEach(keyCode => {
-                    if (KEY_MAP[keyCode] === keyName) {
-                      keyCodesMaintained[keyName].push(keyCode);
-                    }
-                  });
-                  reEmitTimeoutIds[keyName] = setTimeout(() => {
-                    keyCodesMaintained.forEach(keyCode => {
-                      keyDownCallBack({ keyName, keyCode });
+                // the next callback might want reEmitting
+                const nextCallback = callbackArray[callbackArray.length - 2];
+                if (nextCallback) {
+                  const reEmitTimeout = reEmitTimeouts.get(nextCallback);
+                  keyCodesMaintained[keyName] = [];
+
+                  if (reEmitTimeout >= 0) {
+                    KEYCODES_PUSHED.forEach(keyCode => {
+                      if (keyMap[keyCode] === keyName) {
+                        if (!keyCodesMaintained[keyName]) {
+                          keyCodesMaintained[keyName] = [];
+                        }
+                        keyCodesMaintained[keyName].push(keyCode);
+                      }
                     });
-                  },reEmit);
+
+                    const kcsm = keyCodesMaintained[keyName];
+
+                    // if our wanted key is already pressed
+                    if (kcsm && kcsm.length) {
+                      reEmitTimeoutIds[keyName] = setTimeout(() => {
+                        keyCodesMaintained.forEach(keyCode => {
+                          onDownEvent(keyCode);
+                        });
+                      }, reEmitTimeout);
+                    }
+                  }
                 }
               }
             }
@@ -541,8 +613,8 @@ export default () => {
 
             // if no more key events are listened to, remove event listener
             if (!Object.keys(layers).length) {
-              removeKeyEventListener('keydown', keyDownCallBack);
-              removeKeyEventListener('keyup', keyUpCallBack);
+              listener.off('keydown', onDownEvent);
+              listener.off('keyup', keyUpCallback);
             }
           }
 

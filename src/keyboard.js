@@ -1,9 +1,8 @@
 import isSet from './misc/isSet.js';
 import uniq from './misc/uniq.js';
 
-import { KEYCODES_PUSHED } from './events.js';
 import KeyCatcher from './key_catcher.js';
-import config from './config.js';
+import defaultConfig from './config.js';
 
 /**
  * Defines three types of events:
@@ -106,33 +105,50 @@ const EVENT_NAMES = {
  *        2. no option is set
  *        3. no callback is set
  */
-export default () => {
+export default (opt = {}) => {
+
+  const keyMap = opt.keyMap || defaultConfig.KEY_MAP;
+  const groupings = opt.groupings || defaultConfig.GROUPINGS;
+
+  const defaultCombine =
+    opt.combine || defaultConfig.DEFAULT_COMBINE_VALUE;
+
+  const defaultPropagate =
+    opt.propagate || defaultConfig.DEFAULT_PROPAGATE_VALUE;
+
+  const defaultReemit =
+    opt.reEmit || defaultConfig.DEFAULT_REEMIT_TIMEOUT;
+
   // Create new propagation layer from the KeyCatcher
-  const kc = KeyCatcher();
+  const kc = KeyCatcher({
+    keyMap,
+    propagate: defaultPropagate,
+    reEmit: defaultReemit
+  });
 
   return (...args) => {
     // get arguments
     const {
-      keys = uniq(Object.values(config.KEY_MAP)),
+      keys = uniq(Object.values(keyMap)),
       options = {},
       callbackNext = () => {}
-    } = _processArguments(...args);
+    } = _processArguments(groupings, ...args);
 
     // get after and interval options
     const {
       pressIntervals,
-      reEmit: reEmitTimeout = config.DEFAULT_REEMIT_TIMEOUT,
-      propagate: shouldPropagate = config.DEFAULT_PROPAGATE_VALUE,
-      combine: shouldCombineKeys = config.DEFAULT_COMBINE_VALUE
+      reEmit: reEmitTimeout = defaultReemit,
+      propagate: shouldPropagate = defaultPropagate,
+      combine: shouldCombineKeys = defaultCombine
     } = _processOptions(options);
 
     // object used to know which key is pushed and when
     // for each keycode
-    const keysObj = Object.keys(config.KEY_MAP)
+    const keysObj = Object.keys(keyMap)
       .reduce((vals, key) => {
         vals[key] = {
           // name of the key
-          keyName: config.KEY_MAP[key],
+          keyName: keyMap[key],
 
           // true if currently pushed
           isPushed: false,
@@ -143,23 +159,22 @@ export default () => {
           // store a setInterval's return for press events
           interval: null,
 
-          // store a setTimeout's return for press events
-          timeout: null
+          // store setTimeouts return for press events
+          timeouts: []
         };
 
         return vals;
       }, {});
 
     /**
-     * Clear current timeout and/or interval for a specific key object.
+     * Clear current timeouts and/or interval for a specific key object.
      * @param {Object} keyObj
-     * @param {Number|null} keyObj.timeout
+     * @param {Number|null} keyObj.timeouts
      * @param {Number|null} keyObj.interval
      */
-    const clearKeyTimeouts = ({ timeout, interval }) => {
-      if (timeout) {
-        clearTimeout(timeout);
-      }
+    const clearKeyTimeouts = ({ timeouts, interval }) => {
+      timeouts.forEach(t => clearTimeout(t));
+
       if (interval) {
         clearInterval(interval);
       }
@@ -170,8 +185,8 @@ export default () => {
      * object).
      * @param {Object} keyObj
      */
-    const sendPushEvent = ({ keyName }) => {
-      callbackNext({
+    const sendPushEvent = (ctx, { keyName }) => {
+      callbackNext.call(ctx, {
         keyName,
         event: EVENT_NAMES.KEY_DOWN,
         timepress: 0
@@ -183,8 +198,8 @@ export default () => {
      * object).
      * @param {Object} keyObj
      */
-    const sendPressEvent = ({ keyName, pushStart }) => {
-      callbackNext({
+    const sendPressEvent = (ctx, { keyName, pushStart }) => {
+      callbackNext.call(ctx, {
         keyName,
         event: EVENT_NAMES.KEY_PRESS,
         timepress: pushStart ? (Date.now() - pushStart) : 0
@@ -196,8 +211,8 @@ export default () => {
      * object).
      * @param {Object} keyObj
      */
-    const sendReleaseEvent = ({ keyName, pushStart }) => {
-      callbackNext({
+    const sendReleaseEvent = (ctx, { keyName, pushStart }) => {
+      callbackNext.call(ctx, {
         keyName,
         event: EVENT_NAMES.KEY_UP,
         timepress: pushStart ? (Date.now() - pushStart) : 0
@@ -221,19 +236,19 @@ export default () => {
      * @param {string} evt.keyName
      * @param {Number} evt.keyCode
      */
-    const onEvent = (evt) => {
+    const onEvent = function (evt) {
 
       // if keyName is not listened to, abort
       if (!keys.includes(evt.keyName)) {
         return;
       }
 
-      switch (type) {
+      switch (evt.type) {
         case 'keydown':
-          onDownEvent(evt);
+          onDownEvent(this, evt);
           break;
         case 'keyup':
-          onUpEvent(evt);
+          onUpEvent(this, evt);
           break;
       }
     };
@@ -243,12 +258,14 @@ export default () => {
      * key object (keyObj param).
      *
      * If the key is not already pushed:
-     *   1. Begin timeout and/or interval for press events if specified.
+     *   1. Begin timeouts and/or interval for press events if specified.
      *   2. Set right data on the key object
      *   3. Trigger a push event for the key
+     * @param {Object} kcCtx - The keyCatcher's context. Used for
+     * stopPropagation and pushedKeyCodes.
      * @param {Object} keyObj - The key object
      */
-    const onDownEvent = ({ keyCode }) => {
+    const onDownEvent = (kcCtx, { keyCode }) => {
       const keyObj = keysObj[keyCode];
 
       // if it is already pushed, abort
@@ -256,43 +273,39 @@ export default () => {
         return;
       }
 
-      // if we do not want to combine keys
-      // clear press timeouts for every key already pressed and check if
-      // the keydown emitted was for the last key pushed (registration
-      // can be done after some keys have been pushed, and we could have
-      // set a reEmit timeout).
-      if (!shouldCombineKeys) {
-        keysObj.forEach((k) => clearKeyTimeouts(k));
+      // context with which the callback will be called
+      const cbCtx = { stopPropagation: kcCtx.stopPropagation };
 
-        // if this keydown is not for the last key pushed, abort.
-        if (KEYCODES_PUSHED[KEYCODES_PUSHED.len - 1] !== keyCode) {
-          return;
-        }
-      }
-
-      // start press timeout + interval
+      // start press timeouts + interval
       if (isSet(pressIntervals)) {
-        const constructTimeout = (pressIntervals, i) => {
-          clearKeyTimeouts(keyObj);
+        const constructTimeout = (pressInterval) => {
           return setTimeout(() => {
-            // prepare next timeout interval
-            if (isSet(pressIntervals[i + 1])) {
-              setTimeout(() => {
-                keyObj.timeout = constructTimeout(pressIntervals, i + 1);
-              }, pressIntervals[i + 1].after - pressIntervals[i].after);
+            // 1 - clear possible previous interval
+            if (keyObj.interval) {
+              clearInterval(keyObj.interval);
             }
 
-            sendPressEvent(keyObj);
+            // 2 - send initial press event
+            sendPressEvent(cbCtx, keyObj);
 
-            if (_isSet(pressIntervals[i])) {
+            // 3 - if an interval is set do a setInterval for key presses.
+            // Reset keyObj.interval otherwhise
+            if (isSet(pressInterval.interval)) {
               keyObj.interval = setInterval(() => {
-                sendPressEvent(keyObj);
-              }, pressIntervals[i]);
+                sendPressEvent(cbCtx, keyObj);
+              }, pressInterval.interval);
+            } else {
+              keyObj.interval = 0;
             }
-          }, pressAfter);
+
+          }, pressInterval.after);
         };
 
-        keyObj.timeout = constructTimeout(pressIntervals, 0);
+        // launch every interval here (doing every setTimeout synchronously is
+        // more reliable than doing one by one)
+        pressIntervals.forEach(pressInterval => {
+          keyObj.timeouts.push(constructTimeout(pressInterval));
+        });
       }
 
       // set keyObj data
@@ -300,7 +313,7 @@ export default () => {
       keyObj.pushStart = Date.now();
 
       // send initial push event
-      sendPushEvent(keyObj);
+      sendPushEvent(cbCtx, keyObj);
     };
 
     /**
@@ -308,12 +321,12 @@ export default () => {
      * key object (keyObj param).
      *
      * If the key is considered already pushed:
-     *   1. clear timeout and/or interval for press events if specified.
+     *   1. clear timeouts and/or interval for press events if specified.
      *   2. Trigger a release event for the key
      *   2. Set right data on the key object
      * @param {Object} keyObj - The key object
      */
-    const onUpEvent = ({ keyCode }) => {
+    const onUpEvent = (kcCtx, { keyCode }) => {
       const keyObj = keysObj[keyCode];
 
       // if no push event has been received, don't send release events
@@ -324,16 +337,23 @@ export default () => {
 
       clearKeyTimeouts(keyObj);
 
-      sendReleaseEvent(keyObj);
+      // context with which the callback will be called
+      const cbCtx = { stopPropagation: kcCtx.stopPropagation };
+
+      sendReleaseEvent(cbCtx, keyObj);
 
       keyObj.isPushed = false;
       keyObj.pushStart = null;
     };
 
-    kc.register(keys, shouldPropagate, onEvent);
+    kc.register(keys, {
+      propagate: shouldPropagate,
+      reEmit: reEmitTimeout,
+      combine: shouldCombineKeys
+    }, onEvent);
 
     return () => {
-      // clear timeout for every key
+      // clear timeouts for every key
       for (const key of Object.keys(keysObj)) {
         clearKeyTimeouts(keysObj[key]);
       }
@@ -347,6 +367,7 @@ export default () => {
 /**
  * Retrieve arguments (keys + options + callback).
  * undefined if not defined/null/ignored.
+ * @param {Array.<string>} groupings
  * @param {...*} [args]
  * @return {Object} obj
  * @returns {Array.<string>|undefined} obj.keys - Every key names listened to.
@@ -354,7 +375,7 @@ export default () => {
  * @returns {Object|undefined} obj.options
  * @returns {Function|undefined} obj.callbackNext
  */
-const _processArguments = function(...args) {
+const _processArguments = function(groupings, ...args) {
   let keys; // key names
   let options;
   let callbackNext;
@@ -366,13 +387,14 @@ const _processArguments = function(...args) {
    */
   const getKeysFromNames = (names) =>
     names.reduce((kns, name) => {
-      if (Object.keys(config.GROUPINGS).includes(name)) {
-        return kns.concat(config.GROUPINGS[name]);
+      if (Object.keys(groupings).includes(name)) {
+        return kns.concat(groupings[name]);
       }
       kns.push(name);
       return kns;
     }, []);
 
+  const argsLen = args.length;
   let argId = 0;
   let arg = args[argId];
 
@@ -384,10 +406,16 @@ const _processArguments = function(...args) {
     keys = getKeysFromNames([arg]);
     argId++;
     arg = args[argId];
+  } else if (!isSet(arg) && argsLen - 1 > argId) {
+    argId++;
+    arg = args[argId];
   }
 
   if (typeof arg === 'object' && arg !== null) {
     options = arg;
+    argId++;
+    arg = args[argId];
+  } else if (!isSet(arg) && argsLen - 1 > argId) {
     argId++;
     arg = args[argId];
   }
@@ -403,23 +431,6 @@ const _processArguments = function(...args) {
   };
 };
 
-kb('Right', {
-  press: [
-    {
-      after: 2000,
-      interval: 300
-    },
-    {
-      after: 500,
-      interval: 500
-    },
-    {
-      after: 1000,
-      interval: 300
-    }
-  ],
-});
-
 /**
  * Insertion sort algorithm for pressIntervals.
  * /!\ Mutate the given array
@@ -432,35 +443,35 @@ const _sortPressIntervals = (pressIntervals) => {
   for (let i = 0; i < len; i++) {
     // That does not look like an efficient way of doing it, but it doesn't
     // matter here
-    pressInterval[i] = {
-      after: +pressInterval[i].after,
-      interval: +pressInterval[i].interval
+    pressIntervals[i] = {
+      after: +pressIntervals[i].after,
+      interval: +pressIntervals[i].interval
     };
 
-    if (isNaN(pressInterval[i].after)) {
-      if (!isNaN(pressInterval[i].interval)) {
+    if (isNaN(pressIntervals[i].after)) {
+      if (!isNaN(pressIntervals[i].interval)) {
         // In our case: { interval: 100 } == { press: 100, interval: 100 }
-        pressInterval[i].after = pressInterval[i].interval;
+        pressIntervals[i].after = pressIntervals[i].interval;
       } else {
         // we have neither an after nor an interval, splice
-        // it as it is an invalid pressInterval
-        pressInterval.splice(i, 1);
+        // it as it is an invalid pressIntervals
+        pressIntervals.splice(i, 1);
         i--;
         continue;
       }
-    } else if (isNaN(pressInterval[i].interval)) {
-      delete pressInterval[i].interval;
+    } else if (isNaN(pressIntervals[i].interval)) {
+      delete pressIntervals[i].interval;
     }
 
     const j = i;
-    while ( j > 0 && pressIntervals[j - 1].after > pressInterval[j].after) {
+    while ( j > 0 && pressIntervals[j - 1].after > pressIntervals[j].after) {
       const tmp = pressIntervals[j];
       pressIntervals[j] = pressIntervals[j - 1];
       pressIntervals[j - 1] = tmp;
     }
   }
   return pressIntervals;
-}
+};
 
 /**
  * Retrieve press options from the options arguments.
@@ -486,8 +497,8 @@ const _processOptions = function(options) {
     if (Array.isArray(pressOpt)) {
       pressIntervals = _sortPressIntervals(pressOpt);
     } else {
-      let afterOpt = +press.after;
-      let intervalOpt = +press.interval;
+      const afterOpt = +pressOpt.after;
+      const intervalOpt = +pressOpt.interval;
       if (isNaN(afterOpt)) {
         if (!isNaN(intervalOpt)) {
           // In our case: { interval: 100 } == { press: 100, interval: 100 }
@@ -503,7 +514,7 @@ const _processOptions = function(options) {
       }
     }
   }
-  
+
   if (isSet(reEmitOpt)) {
     const reEmitNum = +reEmitOpt;
     if (!isNaN(reEmitNum)) {

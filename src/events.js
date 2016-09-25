@@ -3,34 +3,32 @@
  * and removeEventListener functions.
  *
  * It provides two functions:
- *   - addKeyEventListener
- *   - removeKeyEventListener
+ *   - on
+ *   - off
  *
- * Which are like respectively the addEventListener and removeEventListener
+ * Which wrap respectively the addEventListener and removeEventListener
  * functions with some differences:
  *
  *   - Only works for 'keydown' and 'keyup' events.
  *
- *   - The events will be filtered for only the key available in this webapp's
- *     key map (@see config).
+ *   - Only emit the first keydown when the key is held (not released).
  *
- *   - The callback will have as argument an object with only two keys:
- *       - keyCode: the keyCode of the key pushed. Should be unique.
- *       - keyName: the name of the key pushed, as defined in the key map.
+ *   - You must define the keyCodes listened to, and you are only notified for
+ *     the events for those keys.
  *
- * Please note that this file perform an addEventListener and a
- * removeEventListener when parsed and do a preventDefault for the keys defined
- * in the key map, this is to avoid those keys (like F5) to have a non-wanted
- * behavior on the browser.
+ *   - Multiple on call for the same callback will bind only the last one
+ *     declared.
+ *
+ *   - The callback will have as argument the keyCode of the key pushed.
+ *
+ * Please note that this file perform three addEventListener when parsed.
  */
-
-import isSet from './misc/isSet.js';
-import config from './config.js';
 
 /**
  * Array containing every key pushed.
  * Used by addKeyPushedToArray / removeKeyPushedFromArray / isKeyPushed.
- * @type Array
+ * Used to avoid sending two times in a row a keydown event for the same key.
+ * @type Array.<Number>
  */
 const KEYCODES_PUSHED = [];
 
@@ -62,7 +60,8 @@ const removeKeyPushedFromArray = keyCode => {
 };
 
 /**
- * Register every 'keydown' callbacks added through addKeyEventListener.
+ * Register every 'keydown' callbacks added through addKeyEventListener, as well
+ * as their registered keyCodes.
  *
  * Used to keep track of it as a addEventListener is only done one time
  * in our application and we never perform any removeEventListener.
@@ -71,7 +70,8 @@ const removeKeyPushedFromArray = keyCode => {
 const keyDownCallbacks = [];
 
 /**
- * Register every 'keyup' callbacks added through addKeyEventListener.
+ * Register every 'keyup' callbacks added through addKeyEventListener, as well
+ * as their registered keyCodes.
  *
  * Used to keep track of it as a addEventListener is only done one time
  * in our application and we never perform any removeEventListener.
@@ -79,38 +79,141 @@ const keyDownCallbacks = [];
  */
 const keyUpCallbacks = [];
 
+const listen = (keyCodes) => {
+  // keep track of which callbacks were added through this listen call
+  const localKeyDownCallbacks = [];
+  const localKeyUpCallbacks = [];
+
+  /**
+   * Add new callback for a 'keydown' event on a webapp key
+   * If the same callback was already registered, replace it.
+   * @param {Array.<Number>} keyCodes
+   * @param {Function} - callback
+   */
+  const addKeyDownListener = (callback) => {
+    // if we already registered the same callback here, return
+    for (let i = localKeyDownCallbacks.length - 1; i >= 0; i--) {
+      if (localKeyDownCallbacks[i].callback === callback) {
+        return;
+      }
+    }
+    const localKeyDownCallback = { keyCodes, callback };
+    localKeyDownCallbacks.push(localKeyDownCallback);
+    keyDownCallbacks.push(localKeyDownCallback);
+  };
+
+  /**
+   * Add new callback for a 'keyup' event on a webapp key.
+   * If the same callback was already registered, replace it.
+   * @param {Array.<Number>} keyCodes
+   * @param {Function} - callback
+   */
+  const addKeyUpListener = (callback) => {
+    // if we already registered the same callback here, return
+    for (let i = localKeyUpCallbacks.length - 1; i >= 0; i--) {
+      if (localKeyUpCallbacks[i].callback === callback) {
+        return;
+      }
+    }
+    const localKeyUpCallback = { keyCodes, callback };
+    localKeyUpCallbacks.push(localKeyUpCallback);
+    keyUpCallbacks.push(localKeyUpCallback);
+  };
+
+  /**
+   * Remove callback for a 'keydown' event on a webapp key.
+   * @param {Function} - callback
+   */
+  const removeKeyDownListener = (callback) => {
+    for (let i = localKeyDownCallbacks.length - 1; i >= 0; i--) {
+      if (localKeyDownCallbacks[i].callback === callback) {
+        const indexOf =
+          keyDownCallbacks.indexOf(localKeyDownCallbacks[i]);
+
+        localKeyDownCallbacks.splice(i, 1);
+        keyDownCallbacks.splice(indexOf, 1);
+        return;
+      }
+    }
+  };
+
+  /**
+   * Remove callback for a 'keyup' event on a webapp key.
+   * @param {Function} - callback
+   */
+  const removeKeyUpListener = (callback) => {
+    for (let i = localKeyUpCallbacks.length - 1; i >= 0; i--) {
+      if (localKeyUpCallbacks[i].callback === callback) {
+        const indexOf =
+          keyUpCallbacks.indexOf(localKeyUpCallbacks[i]);
+
+        localKeyUpCallbacks.splice(i, 1);
+        keyUpCallbacks.splice(indexOf, 1);
+        return;
+      }
+    }
+  };
+
+  return {
+    on(event, callback) {
+      switch (event) {
+        case 'keydown':
+          addKeyDownListener(callback);
+          break;
+
+        case 'keyup':
+          addKeyUpListener(callback);
+          break;
+      }
+    },
+
+    off(event, callback) {
+      switch (event) {
+        case 'keydown':
+          removeKeyDownListener(callback);
+          break;
+        case 'keyup':
+          removeKeyUpListener(callback);
+      }
+    }
+  };
+};
+
 /**
  * Trigger every callbacks registered for the 'keydown' events with the
  * right arguments.
  *
- * @param {String} keyName
  * @param {Number} keyCode
  */
-const triggerKeyDownEvent = (keyName, keyCode) => {
-  const arg = { keyName, keyCode };
-  keyDownCallbacks.forEach((c) => c(arg));
+const triggerKeyDownEvent = (keyCode) => {
+  keyDownCallbacks.forEach((kdc) => {
+    if (kdc.keyCodes.includes(keyCode)) {
+      kdc.callback(keyCode);
+    }
+  });
 };
 
 /**
  * Trigger every callbacks registered for the 'keyup' events with the
  * right arguments.
  *
- * @param {String} keyName
  * @param {Number} keyCode
  */
-const triggerKeyUpEvent = (keyName, keyCode) => {
-  const arg = { keyName, keyCode };
-  keyUpCallbacks.forEach((c) => c(arg));
+const triggerKeyUpEvent = (keyCode) => {
+  keyUpCallbacks.forEach((kuc) => {
+    if (kuc.keyCodes.includes(keyCode)) {
+      kuc.callback(keyCode);
+    }
+  });
 };
 
 /**
  * Trigger callbacks defined for the keyup event.
  * @param {Number} keyCode
- * @param {string} keyName
  */
-const triggerKeyupCallbacks = (keyCode, keyName) => {
+const triggerKeyupCallbacks = (keyCode) => {
   // call every callbacks related to this key
-  triggerKeyUpEvent(keyName, keyCode);
+  triggerKeyUpEvent(keyCode);
 };
 
 /**
@@ -123,16 +226,6 @@ const onKeyDown = (evt) => {
     keyCode = evt.which;
   }
 
-  const keyName = config.KEY_MAP[keyCode];
-
-  // if this key is not defined in the keyMap, don't do anything
-  if (!isSet(keyName)) {
-    return;
-  }
-
-  // avoid keys, like 'Back', to be catched by the browser
-  evt.preventDefault();
-
   // if the key is already pushed, quit, we have our own mean for consecutive
   // keydowns (@see CONSECUTIVE_KEYDOWNS_OBJECT)
   if (isKeyPushed(keyCode)) {
@@ -143,7 +236,7 @@ const onKeyDown = (evt) => {
   addKeyPushedToArray(keyCode);
 
   // start sending keydown events
-  triggerKeyDownEvent(keyCode, keyName);
+  triggerKeyDownEvent(keyCode);
 };
 
 /**
@@ -156,24 +249,11 @@ const onKeyUp = (evt) => {
     keyCode = evt.which;
   }
 
-  const keyName = config.KEY_MAP[keyCode];
-
-  // if this key is not defined in the keyMap, don't do anything
-  if (!isSet(keyName)) {
-    return;
-  }
-
-  // avoid keys, like 'Back', to be catched by the browser
-  evt.preventDefault();
-
   // Consider the key as released from there.
   removeKeyPushedFromArray(keyCode);
 
-  // stop sending keydown events
-  stopTriggeringKeydownCallbacks(keyCode);
-
   // send keyup event
-  triggerKeyupCallbacks(keyCode, keyName);
+  triggerKeyupCallbacks(keyCode);
 };
 
 /**
@@ -185,91 +265,23 @@ const onKeyUp = (evt) => {
  */
 const isKeyPushed = keyCode => KEYCODES_PUSHED.includes(keyCode);
 
-/**
- * Add new callback for a 'keydown' event on a webapp key
- * (if not already added).
- * @param {Function} - callback
- */
-const addKeyDownListener = (callback) => {
-  if (!keyDownCallbacks.includes(callback)) {
-    keyDownCallbacks.push(callback);
-  }
-};
-
-/**
- * Add new callback for a 'keyup' event on a webapp key
- * (if not already added).
- * @param {Function} - callback
- */
-const addKeyUpListener = (callback) => {
-  if (!keyUpCallbacks.includes(callback)) {
-    keyUpCallbacks.push(callback);
-  }
-};
-
-/**
- * Add new callback for the 'keydown' or the 'keyup' event
- * (if not already added).
- * @param {String} event - 'keydown' or 'keyup'
- * @param {Function} callback
- */
-const addKeyEventListener = (event, callback) => {
-  switch (event) {
-    case 'keyup':
-      addKeyUpListener(callback);
-      break;
-    case 'keydown':
-      addKeyDownListener(callback);
-  }
-};
-
-/**
- * Remove callback for a 'keydown' event on a webapp key.
- * @param {Function} - callback
- */
-const removeKeyDownListener = (callback) => {
-  for (let i = keyDownCallbacks.length - 1; i >= 0; i--) {
-    if (keyDownCallbacks[i] === callback) {
-      keyDownCallbacks.splice(i, 1);
-      return;
-    }
-  }
-};
-
-/**
- * Remove callback for a 'keyup' event on a webapp key.
- * @param {Function} - callback
- */
-const removeKeyUpListener = (callback) => {
-  for (let i = keyUpCallbacks.length - 1; i >= 0; i--) {
-    if (keyUpCallbacks[i] === callback) {
-      keyUpCallbacks.splice(i, 1);
-      return;
-    }
-  }
-};
-
-/**
- * Remove callback for a 'keydown' or a 'keyup' event on a webapp key.
- * @param {String} event - 'keydown' or 'keyup'
- * @param {Function} - callback
- */
-const removeKeyEventListener = (event, callback) => {
-  switch (event) {
-    case 'keyup':
-      removeKeyUpListener(callback);
-      break;
-    case 'keydown':
-      removeKeyDownListener(callback);
-  }
-};
-
 // add event listeners
+
 document.addEventListener('keydown', onKeyDown);
 document.addEventListener('keyup', onKeyUp);
 
-export {
-  addKeyEventListener,
-  removeKeyEventListener,
-  KEYCODES_PUSHED
-};
+// when not focusing the current window, release every keys to avoid having an
+// infinite keydown.
+// /!\ seems to not working well when changing tabs on chrome, sadly
+window.addEventListener('blur', () => {
+  // ugly but does the job
+  KEYCODES_PUSHED.forEach(keyCode =>
+    onKeyUp({
+      keyCode,
+      preventDefault: () => {}
+    })
+  );
+});
+
+export { KEYCODES_PUSHED };
+export default listen;

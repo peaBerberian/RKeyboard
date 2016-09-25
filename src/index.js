@@ -26,89 +26,16 @@
  * events.js -> key_catcher.js -> keyboard.js -> _application_
  */
 
+import './misc/polyfill.js';
 import RxKeyboard from './implementations/rx.js';
-import SimpleKeyboard from './implementations/simple.js';
-import MinimalKeyboard from './implementations/minimal.js';
-import RKeyboard from './implementations/small.js';
-import config from './config.js';
+import RKeyboard from './implementations/default.js';
 import createKeyboard from './keyboard.js';
 
-// Allow users to modify the following config keys
-[Keyboard, RxKeyboard, SimpleKeyboard].forEach(implem => {
-  [
-    'KEY_MAP',
-    'GROUPINGS',
-    'DEFAULT_PROPAGATE_VALUE',
-    'CONSECUTIVE_KEYDOWNS_INTERVAL'
-  ].forEach(conf => {
-    Object.defineProperty(implem, conf, {
-      get: () => config[conf],
-      set: (val) => config[conf] = val,
-    });
-  });
-});
-
-/**
- * Every options are... optional.
- */
-const options = {
-  // whether the received key event should be propagated to its next listener.
-  // defaults to RKeyboard.DEFAULT_PROPAGATE_VALUE
-  propagate: true,
- 
-  // press options
-  // if not set, no press event will be sent
-  press: {
-    after: 1000,
-    interval: 2000
-  },
-
-  // callback called as the key is pushed (first keydown)
-  onPush: () => {},
-
-  // callback called as the key is released (keyup)
-  onRelease: () => {},
-
-  // callback called as the key is pressed (see press options)
-  onPress: () => {},
-
-  // callback called on 'push' AND 'press'
-  onDown: () => {},
-
-  // callback called on 'push', 'press' AND 'release'
-  onEvent: () => {},
-
-  // callback called when you remove this event listener
-  onClose: () => {}
-};
-
-const myKeys1 = kb(['Enter', 'Up', 'a'], {
-  onPush: (evt) => {
-    console.log('You pushed the key ${evt.keyName}');
-  }
-});
-
-const myKeys2 = kb(['Enter', 'Up', 'a'], {
-  press: { after: 500 },
-
-  onPush: (evt) => {
-    console.log('You pushed the key ${evt.keyName}');
-  },
-
-  onPress: (evt) => {
-    console.log('You pressed the key ${evt.keyName} for 500ms');
-  }
-});
-
-// stop listening
-myKeys2();
-
 export {
-  MinimalKeyboard,
   RKeyboard,
-  SimpleKeyboard,
   RxKeyboard,
   createKeyboard
 };
 
+window.RKeyboard = RKeyboard;
 export default RKeyboard;
