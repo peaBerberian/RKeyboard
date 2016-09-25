@@ -1,6 +1,7 @@
 import isSet from './misc/isSet.js';
 import uniq from './misc/uniq.js';
 
+import listen, { KEYCODES_PUSHED } from './events.js';
 import KeyCatcher from './key_catcher.js';
 import defaultConfig from './config.js';
 
@@ -125,6 +126,10 @@ export default (opt = {}) => {
     propagate: defaultPropagate,
     reEmit: defaultReemit
   });
+
+  // We might need to listen events in our keyMap directly for
+  // 'Combine' rules
+  const listener = listen(Object.keys(keyMap).map(x => +x));
 
   return (...args) => {
     // get arguments
@@ -273,6 +278,13 @@ export default (opt = {}) => {
         return;
       }
 
+      // if this keydown is not for the last key pushed, abort.
+      // (registration can be done after some keys have been pushed, and we
+      // could have set a reEmit timeout)
+      if (KEYCODES_PUSHED[KEYCODES_PUSHED.length - 1] !== keyCode) {
+        return;
+      }
+
       // context with which the callback will be called
       const cbCtx = { stopPropagation: kcCtx.stopPropagation };
 
@@ -346,13 +358,26 @@ export default (opt = {}) => {
       keyObj.pushStart = null;
     };
 
+    // if we do not want to combine keys, on any keyCode keydown event,
+    // clear press timeouts for every key already pressed.
+    let onAnyKeyDown;
+    if (!shouldCombineKeys) {
+      onAnyKeyDown = () => {
+        Object.values(keysObj).forEach((k) => clearKeyTimeouts(k));
+      };
+      listener.on('keydown', onAnyKeyDown);
+    }
+
     kc.register(keys, {
       propagate: shouldPropagate,
-      reEmit: reEmitTimeout,
-      combine: shouldCombineKeys
+      reEmit: reEmitTimeout
     }, onEvent);
 
     return () => {
+      if (!shouldCombineKeys) {
+        listener.off('keydown', onAnyKeyDown);
+      }
+
       // clear timeouts for every key
       for (const key of Object.keys(keysObj)) {
         clearKeyTimeouts(keysObj[key]);
@@ -510,6 +535,11 @@ const _processOptions = function(options) {
       } else if (isNaN(intervalOpt)) {
         pressIntervals = [{
           after: afterOpt
+        }];
+      } else {
+        pressIntervals = [{
+          after: afterOpt,
+          interval: intervalOpt
         }];
       }
     }

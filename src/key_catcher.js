@@ -78,9 +78,6 @@ export default (opt = {}) => {
   const defaultReemit =
     opt.reEmit || defaultConfig.DEFAULT_REEMIT_VALUE;
 
-  const defaultCombine =
-    opt.combine || defaultConfig.DEFAULT_COMBINE_VALUE;
-
   const listener = listen(Object.keys(keyMap).map(x => +x));
 
   /**
@@ -170,8 +167,6 @@ export default (opt = {}) => {
    */
   const reEmitTimeouts = new WeakMap();
 
-  const listenedKeyCodesPushed = [];
-
   /**
    * Return list of active callbacks for the corresponding key.
    * @param {string} keyName
@@ -245,27 +240,6 @@ export default (opt = {}) => {
    * @param {Number} keyEvent.keyCode
    */
   const onDownEvent = (keyCode) => {
-    if (!combine) {  
-      // if this keydown is not for the last key pushed, abort.
-      // (registration can be done after some keys have been pushed, and we
-      // could have set a reEmit timeout)
-      if (KEYCODES_PUSHED[KEYCODES_PUSHED.length - 1] !== keyCode) {
-        return
-      }
-
-      if (listenedKeyCodesPushed.length) {
-        listenedKeyCodesPushed.forEach(keyCode => {
-          triggerCatchers('keyup', {
-            keyName: keyMap[keyCode],
-            keycode
-          });
-        });
-      }
-
-      listenedKeyCodesPushed.push(keyCode);
-      const keyName = keyMap[keyCode];
-    }
-
     const keyName = keyMap[keyCode];
     triggerCatchers('keydown', keyName, keyCode);
   };
@@ -279,21 +253,12 @@ export default (opt = {}) => {
   const keyUpCallback = (keyCode) => {
     const keyName = keyMap[keyCode];
 
-    {
-      // if the keyCode was maintained (for reEmitting the event),
-      // stop doing it now that it's released.
-      const indexOfMaintained = keyCodesMaintained[keyName] &&
-        keyCodesMaintained[keyName].indexOf(keyCode);
-      if (indexOfMaintained >= 0) {
-        keyCodesMaintained[keyName].splice(indexOfMaintained, 1);
-      }
-    }
-
-    {
-      const indexOfListened = listenedKeyCodesPushed.indexOf(keyCode);
-      if (indexOfListened >= 0) {
-        listenedKeyCodesPushed[keyName].splice(indexOfListened, 1);
-      }
+    // if the keyCode was maintained (for reEmitting the event),
+    // stop doing it now that it's released.
+    const indexOf = keyCodesMaintained[keyName] &&
+      keyCodesMaintained[keyName].indexOf(keyCode);
+    if (indexOf >= 0) {
+      keyCodesMaintained[keyName].splice(indexOf, 1);
     }
 
     triggerCatchers('keyup', keyName, keyCode);
@@ -358,7 +323,7 @@ export default (opt = {}) => {
   ret.register = (...args) => {
 
     const processArguments = (...args) => {
-      let keyNames, propagate, combine, reEmit, callback;
+      let keyNames, propagate, reEmit, callback;
 
       let argCounter = 0;
 
@@ -372,7 +337,6 @@ export default (opt = {}) => {
       if (isSet(args[argCounter])) {
         propagate = args[argCounter].propagate;
         reEmit = args[argCounter].reEmit;
-        combine = args[argCounter].combine;
       }
 
       // Last argument: callback
@@ -384,7 +348,6 @@ export default (opt = {}) => {
         keyNames,
         propagate,
         reEmit,
-        combine,
         callback
       };
     };
@@ -470,7 +433,6 @@ export default (opt = {}) => {
       keyNames = uniq(Object.values(keyMap)),
       propagate = defaultPropagate,
       reEmit = defaultReemit,
-      combine = defaultCombine,
       callback
     } = processArguments(...args);
 
