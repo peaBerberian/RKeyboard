@@ -81,7 +81,30 @@ export default (opt = {}) => {
   const defaultReemit =
     opt.reEmit || defaultConfig.DEFAULT_REEMIT_VALUE;
 
+  // /**
+  //  * Store every keyName from every key currently held, in the right order.
+  //  * @type Array.<string>
+  //  */
+  // const KEYNAMES_PUSHED = [];
 
+  /**
+   * Store every key combination wanted.
+   * Example: [['Ctrl', 'Up'], ['a', 'b']]
+   * @type Array.Array.<string>
+   */
+  const KEY_COMBINATIONS = [];
+
+  /**
+   * Store, unitarly every key involved in a combination.
+   * Example: ['Ctrl', 'Up', 'a', 'b']
+   * @type Array.<string>
+   */
+  const KEY_COMBINATIONS_KEYS = [];
+
+  /**
+   * Create a listener.
+   * @type Object
+   */
   const listener = listen(Object.keys(keyMap).map(x => +x), {
     preventDefault
   });
@@ -239,6 +262,56 @@ export default (opt = {}) => {
     }
   };
 
+  const triggerCombinations = (keyCode, keyName) => {
+    // if this key is involved in a combination
+    if (KEY_COMBINATIONS_KEYS.includes(keyName)) {
+      /**
+       * 2D Array ([n][3]) which contains, for each of n combinations:
+       *   1. The needed keyNames we have to check for push
+       *   2. The corresponding keyCodes as they are found
+       *   3. The combinations eligible
+       * @type Array.<Array.Array<string, Number, string>>
+       */
+      const arr = [];
+
+      // 1 - get every combinations including keyName
+      KEY_COMBINATIONS.forEach(combination => {
+        const indexOf = combination.indexOf(keyName);
+        if (indexOf >= 0) {
+          arr.push([
+            [ ...combination].splice(indexOf, 1),
+            [],
+            [combination]
+          ]);
+        }
+      });
+
+      // 2 - second loop to find all combination completely performed
+      for (let i = KEYCODES_PUSHED.length - 1; i >= 0; i--) {
+        if (KEYCODES_PUSHED[i] !== keyCode) {
+          arr.forEach(m => {
+            const indexOf = m[0].indexOf(keyMap[keyCode]);
+            if (indexOf >= 0) {
+              m[0].splice(indexOf, 1);
+              m[1][indexOf] = keyCode;
+            }
+          });
+        }
+      }
+
+      // 3 - find all combination we should trigger in order they have been
+      // asked for and trigger it.
+      arr.forEach(o => {
+        if (!o[0].length) {
+          const keyCode = o[1];
+
+          // trigger each of its catchers
+          triggerCatchers('keydown', o[2], keyCode);
+        }
+      });
+    }
+  };
+
   /**
    * Callback called on keydown.
    * @param {Object} keyEvent
@@ -247,7 +320,11 @@ export default (opt = {}) => {
    */
   const onDownEvent = (keyCode) => {
     const keyName = keyMap[keyCode];
+
+    // trigger each of its catchers
     triggerCatchers('keydown', keyName, keyCode);
+
+    triggerCombinations(keyCode, keyName);
   };
 
   /**
@@ -256,7 +333,7 @@ export default (opt = {}) => {
    * @param {string} keyEvent.keyName
    * @param {Number} keyEvent.keyCode
    */
-  const keyUpCallback = (keyCode) => {
+  const onUpEvent = (keyCode) => {
     const keyName = keyMap[keyCode];
 
     // if the keyCode was maintained (for reEmitting the event),
@@ -366,7 +443,7 @@ export default (opt = {}) => {
       // If no key are registered, link trigger to events
       if (!Object.keys(layers).length) {
         listener.on('keydown', onDownEvent);
-        listener.on('keyup', keyUpCallback);
+        listener.on('keyup', onUpEvent);
       }
 
       // If you add a new key listener, you might want to re-emit
@@ -582,7 +659,7 @@ export default (opt = {}) => {
             // if no more key events are listened to, remove event listener
             if (!Object.keys(layers).length) {
               listener.off('keydown', onDownEvent);
-              listener.off('keyup', keyUpCallback);
+              listener.off('keyup', onUpEvent);
             }
           }
 

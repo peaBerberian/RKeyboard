@@ -1,7 +1,8 @@
 // TODO:
-// WHAT HAPPENS IF A KEY IS MAINTAINED WHILE A NON-PROPAGATING CALL COME AND GO?
-// -> REEMIT
+// V WHAT HAPPENS IF A KEY IS MAINTAINED WHILE A NON-PROPAGATING CALL COME AND GO?
+// -> REEMIT. TEST IT
 // SHOULD COMBINE DO A RELEASE? What about propagation?
+// -> No for the moment
 // COMBINATION OF KEYS: Ctrl+Up Ctrl>Up
 import isSet from './misc/isSet.js';
 import uniq from './misc/uniq.js';
