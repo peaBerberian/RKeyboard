@@ -1,0 +1,58 @@
+{
+  "name": "rkeyboard.js",
+  "version": "0.1.0",
+  "description": "Complex keyboard management made easy",
+  "main": "bin/rkeyboard.js",
+  "scripts": {
+    "test": "",
+    "build": "webpack",
+    "clean": "rm -rf ./bin/*",
+    "lint": "eslint src/**/*.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/peaBerberian/RKeyboard.js.git"
+  },
+  "keywords": [
+    "keyboard",
+    "key",
+    "keys",
+    "remote",
+    "control",
+    "controls",
+    "rxjs",
+    "rx.js",
+    "reactive",
+    "events"
+  ],
+  "author": "peaberberian",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/peaBerberian/RKeyboard.js/issues"
+  },
+  "homepage": "https://github.com/peaBerberian/RKeyboard.js#readme",
+  "devDependencies": {
+    "babel-core": "^6.14.0",
+    "babel-eslint": "^6.1.2",
+    "babel-loader": "^6.2.5",
+    "babel-plugin-transform-class-properties": "^6.11.5",
+    "babel-plugin-transform-object-rest-spread": "^6.8.0",
+    "babel-preset-es2015": "^6.14.0",
+    "babel-preset-es2016": "^6.11.3",
+    "babel-preset-es2017": "^6.14.0",
+    "eslint": "^3.5.0",
+    "eslint-config-defaults": "^9.0.0",
+    "eslint-loader": "^1.5.0",
+    "eslint-plugin-jasmine": "^1.8.1",
+    "jasmine": "^2.5.2",
+    "karma": "^1.3.0",
+    "karma-chrome-launcher": "^2.0.0",
+    "karma-cli": "^1.0.1",
+    "karma-firefox-launcher": "^1.0.0",
+    "karma-ie-launcher": "^1.0.0",
+    "karma-jasmine": "^1.0.2",
+    "karma-opera-launcher": "^1.0.0",
+    "karma-safari-launcher": "^1.0.0",
+    "webpack": "^1.13.2"
+  }
+}
