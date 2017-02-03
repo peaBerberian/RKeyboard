@@ -11,7 +11,7 @@ export default {
    * @type Object
    */
   KEY_MAP: {
-    // 8: 'Back', // Backspace
+    8: 'Back', // Backspace
     9: 'Tab', // Tab
     13: 'Enter', // Enter
     16: 'Shift', // Shift

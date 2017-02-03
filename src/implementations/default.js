@@ -7,10 +7,10 @@ import createKeyboard from '../keyboard.js';
  * ```js
  * import RKeyboard from 'rkeyboard';
  *
- * const keyboard = Rkeyboard.create();
+ * const keyboard = Rkeyboard();
  *
  * // trigger a callback for the 'Up' key keydown events
- * const upKey = keyboard('Up',  {
+ * const keyListener = keyboard('Up',  {
  *  onPush: (e) => {
  *    // 'push' as it is the only event listened here
  *    console.log(e.event);
@@ -85,74 +85,74 @@ import createKeyboard from '../keyboard.js';
  * // -- start and stop listening to keys --
  *
  * // first listen to the key and store the returned object
- * const myKey = keyboard('Up', { onPush: () => {} });
+ * const myKeyListener = keyboard('Up', { onPush: () => {} });
  *
- * // executing it free the event listener
- * myKey();
+ * // free the event listener
+ * myKeyListener.unbind();
  * ```
  */
-export default {
-  create(opt) {
-    const kb = createKeyboard(opt);
+export (opt) => {
+  const kb = createKeyboard(opt);
 
-    const callIfExist = (cb, evt) => cb && cb(evt);
+  const callIfExist = (cb, evt) => cb && cb(evt);
 
-    const getArgs = (arg1, arg2) => {
-      if (Array.isArray(arg1) || typeof arg1 === 'string') {
-        return {
-          keys: arg1,
-          options: arg2
-        };
-      }
-
+  const getArgs = (arg1, arg2) => {
+    if (Array.isArray(arg1) || typeof arg1 === 'string') {
       return {
-        options: arg1
+        keys: arg1,
+        options: arg2
       };
-    };
+    }
 
     return {
-      listen(...args) {
-        const {
-          keys,
-          options = {}
-        } = getArgs(...args);
-
-        const {
-          onPush,
-          onRelease,
-          onPress,
-          onDown,
-          onEvent,
-          onClose,
-          ...keyOptions
-        } =  options;
-
-        const stopListening = kb.listen(keys, keyOptions, (evt) => {
-          switch (evt.event) {
-            case 'push':
-              callIfExist(onPush, evt);
-              callIfExist(onDown, evt);
-              break;
-            case 'press':
-              callIfExist(onPress, evt);
-              callIfExist(onDown, evt);
-              break;
-            case 'release':
-              callIfExist(onRelease, evt);
-              break;
-          }
-          callIfExist(onEvent, evt);
-        });
-
-        return () => {
-          callIfExist(onClose);
-          stopListening();
-        };
-      },
-
-      close() {
-        kb.close();
-      }
+      options: arg1
     };
-  }
+  };
+
+  return {
+    listen(...args) {
+      const {
+        keys,
+        options = {}
+      } = getArgs(...args);
+
+      const {
+        onPush,
+        onRelease,
+        onPress,
+        onDown,
+        onEvent,
+        onUnbind,
+        ...keyOptions
+      } =  options;
+
+      const stopListening = kb.listen(keys, keyOptions, (evt) => {
+        switch (evt.event) {
+          case 'push':
+            callIfExist(onPush, evt);
+            callIfExist(onDown, evt);
+            break;
+          case 'press':
+            callIfExist(onPress, evt);
+            callIfExist(onDown, evt);
+            break;
+          case 'release':
+            callIfExist(onRelease, evt);
+            break;
+        }
+        callIfExist(onEvent, evt);
+      });
+
+      return {
+        unbind() {
+          callIfExist(onUnbind);
+          stopListening();
+        }
+      };
+    },
+
+    free() {
+      kb.close();
+    }
+  };
 };
