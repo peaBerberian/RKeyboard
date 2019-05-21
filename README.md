@@ -1,25 +1,30 @@
-# R-Keyboard
+# RKeyboard ####################################################################
 
-## Presentation
+## Overview ####################################################################
 
-RKeyboard is a library allowing complex key handling in javascript.
+The RKeyboard is a library allowing complex key handling in javascript.
 
-Its main features are:
-  - bind easily callbacks to keyboard events
-  - bind complex 'press' events definition for when a key is maintained
-  - manage automatic multi-layers propagation rules for complex UIs _(e.g. when a menu comes in front of your UI)_
-  - easy-to-remember and configurable key names and key groupings _(example: 'Numeric' for numeric + numpad keys)_
-  - easy to wrap in other libraries:
-    - _'vanilla' js_: The principal implementation doesn't depend on any library and will work on most browsers.
-    - _RxJS_: Our original implementation made use of RxJS Observables.
-    - _React_: can be directly linked to React Components methods or props (wip).
-    - _..._: you can use our createNewKeyboard function directly to easily link the RKeyboard to your specific architecture
+With it, you can:
+  - bind callbacks to keyboard events
+  - bind 'press' events triggered when a key is maintained for a configurable
+    amount of time
+  - manage multi-layers propagation rules for complex UIs _(e.g. to allow or not
+    multiple event handler at the same time when multiple key-grabbing menus are
+    on the screen)_
+  - allow to re-emit (or not) a given key event when registering a callback for
+    it while the key is already pressed
+  - easy-to-remember, configurable key names and key groupings _(example:
+    'Numeric' for numeric + numpad keys)_
+  - easy to integrate to other libraries
 
-I do not take the mouse position nor actions into account here, the RKeyboard was initially implemented for STB platforms where every possible interaction is done with the remote keys.
+The RKeyboard was initially implemented for complex set-top box applications
+where every interaction has to be done with the remote keys.
 
-## Quick look
 
-Let's present some general usecase, first:
+
+## Quick Example ###############################################################
+
+Here is a basic usage of RKeyboard:
 ```js
 // import the RKeyboard from this libray
 import RKeyboard from 'rkeyboard';
@@ -28,18 +33,19 @@ import RKeyboard from 'rkeyboard';
 const keyboard = RKeyboard();
 
 // let's listen to keydown and keyup events for the 'Up' and 'Down' key
-const myListener = keyboard.bind(['Up','Down'], {
+const upOrDown = keyboard.bind(['Up','Down'], {
   onPush: function(evt) {
-    console.log(evt.keyName + ' pushed!'); // 'Up pushed!'/'Down pushed!'
+    console.log(evt.keyName + ' pushed!'); // 'Up pushed!' (or Down pushed!')
   },
 
   onRelease: (evt) => {
-    console.log(evt.keyName + ' released!'); // 'Up released!'/'Down released!'
+    console.log(evt.keyName + ' released!'); // 'Up released!'
+                                             // (or 'Down released!')
   }
 });
 
-// unbind this specific interaction
-myListener.unbind();
+// Stop listening to those events
+upOrDown.unbind();
 
 // adding press intervals to a key
 const myPressListener = keyboard.bind('Right', {
@@ -54,371 +60,268 @@ const myPressListener = keyboard.bind('Right', {
 keyboard.free();
 ```
 
-## Installation
 
-As of now, the RKeyboard is not on NPM (I want to finalize some testing first and be sure of the project's stability).
 
-Build scripts to produce a single source is also a work in progress. For now, you can just import the RKeyboard from the ``src/index.js`` directory.
+## Installation ################################################################
+
+The RKeyboard is not available on `npm` yet, I still have to fix some edge-cases
+before publishing it.
+
+In the meantime you can freely use the code in this repository.
+
+
+
+## Usage #######################################################################
+
+The first step before listening to key events is to create a new RKeyboard.
 ```js
-import RKeyboard from './src';
+const keyboard = RKeyboard();
 ```
 
-## Keyboard creation
 
-The first step to bind key events with the RKeyboard, is to create a new RKeyboard. This allows you to define the keys you want to catch and several other options.
+### Basic binding (push/release key) ###########################################
 
-This is done simply by executing the RKeyboard imported function.
+The next step is to call `bind` on it, allowing to listen to given key(s):
 ```js
-const keyboard = RKeyboard(options);
-```
+const upOrDown = keyboard.bind(['Up', 'a'], {
+  onPush: function(evt) {
+    if (evt.keyName === 'a') {
+      console.log('The `a` key was pushed!');
+    } else {
+      console.log('The `Up` key was pushed!');
+    }
+  },
 
-Here, 'options' is an optional object that can be given to the create function.
-This object can contain any of the following properties:
-
-| Name            | Type    | Description                                                   | Default value         |
-|---------------- |---------|---------------------------------------------------------------|-----------------------|
-| keyMap          | object  | Link event keyCodes to keyNames                               | See KeyMap chapter    |
-| groupings       | object  | Aliases for several key names                                 | See Groupings chapter |
-| preventDefault  | boolean | Used to automatically preventDefault on all the keyMap's keys | false                 |
-| propagate       | boolean | Default propagation rule [3]                                  | true                  |
-| reEmit          | number  | Default reEmitting time [4], in ms                            | 300                   |
-| combine         | boolean | Wether multiple simultanate keypresses should be sent         | true                  |
-
-
-This can seem complicated at first. A sane default configuration is already set by default, so you shouldn't have to worry about any of this yet.
-
-Still, we will go through each of these options here.
-
-### keyMap
-
-The RKeyboard use keyNames (and not keyCodes) to know which key you want to bind to which callback.
-
-The keyMap is the Object linking the keyCode (the object's keys) to the corresponding keyName (the object's values).
-
-[A sane keyMap configuration is done by default](./KEY_MAP.md), but you might want to set yours.
-This can be done through the _keyMap_ options when creating a new RKeyboard:
-
-```js
-const myKeyboard = RKeyboard({ keyMap: { 13: 'Enter' } });
-```
-
-### groupings
-
-Groupings are, as its name may hint at, grouping of multiple keys.
-This can be used to easily refer to multiple keys (like the direction keys).
-
-Let's say that you want to write an editor which just print every letter you type in. You already recorded the keyNames corresponding to every letter through the keyMap ('a' for the letter a etc.). You might want to add a ``'letters'`` grouping for every letter keys (already present in the default groupings configuration) and just do:
-
-```js
-const myKeyboard = RKeyboard();
-
-myKeyboard.bind('letters', {
-  onPush({ keyName }) {
-    writeLetter(keyName);
+  onRelease: (evt) => {
+    console.log(evt.keyName + ' released!'); // 'Up released!'
+                                             // (or 'Down released!')
   }
-})
+});
 ```
 
-And that's it! The ``keyName`` attribute will be as usual the keyName configured for the keyCode the user typed. So in this case, it can be any letter configured in the ``'letters'`` grouping.
+The first argument given to bind is an array of strings corresponding to the
+names of the key wanted. It can have any number of element.
 
-The groupings options is just an object with, as a key, the name of the grouping, and as a value, the array of every keyNames it regroups.
+The list of available key names is declared [here](./doc/KEY_MAP.md).
+You can also declare your own list of keys, see [the advanced configuration
+page](./doc/advanced_usages.md) for more informations.
 
-[A sane groupings configuration is done by default](./GROUPINGS.md), but you might want to set yours.
-This can be done through the _groupings_ options when creating a new RKeyboard:
-
-```js
-const myKeyboard = RKeyboard({ groupings: { directions: ['Left', 'Down', 'Right', 'Up' ] } });
-```
-
-### preventDefault
-
-If set to true, the preventDefault option will automatically, at the RKeyboard creation, perform a preventDefault to every keydown and keyup events for every key written in the keyMap.
-
-TODO also prevent keypress?
-
-This can be useful when binding keys already used by the browser, such as the F5 key.
-
-It is set to false by default (no preventDefault). If you want to set it, just set the __preventDefault__ option to true when creating a new RKeyboard.
-```js
-const myKeyboard = RKeyboard({ preventDefault: true });
-```
-
-### propagate
-
-The propagation management is one of the main advantage of using the RKeyboard. It is used to prevent specific keys to be binded to multiple simultaneous component (or not, depending on the usecase). Don't be afraid, it might seem complicated but it's really simple in practice.
-
-TODO
-
-### reEmit
-
-The reEmit option also shines in complex UIs where multiple component can mount and unmount during the lifetime of your applications. Basically, it allows to reEmit a keydown even if the key was pushed when another binder was active.
-
-Let's illustrate this with a simple example:
-
-TODO
-
-### combine
-
-## Implementations
-
-As the RKeyboard code is very modular, you can adapt it to any project very easily.
-For example, with it you can easily react to keyboard inputs:
-  - by using regular callbacks.
-  - by directly triggering methods in React Components.
-  - by using an event emitter.
-  - by using RxJS observables (this was our default implementation)
-  - ...
-
-Multiple (minimal) implementations have already been written to save you the hassle and showcase what can be done in very few lines (I'm talking about less than 10 lines, watch our implementation's code in _src/implementations/_).
-
-The current implementations are:
-  - __Keyboard__: Minimal implementation. Register a unique callback for all types of events.
-  - __SimpleKeyboad__: Add the possibility to add a callback by type of event.
-  - __RxKeyboard__: Keyboard meant to be used with RxJS. Here your keyboard's stream of inputs can be treated as an observable.
-
-### RKeyboard
-
-The RKeyboard is the default implementation.
-
-TODO
-
-To this object, you can define any of the following handler functions:
-  - __onPush__: callback called when a 'push' event is received.
-  - __onRelease__: callback called when a 'release' event is received.
-  - __onPress__: callback called when a 'press' event is received.
-  - __onEvent__: callback called when a 'push', 'press' or 'release' event is received.
+As a second argument, you can define an object with any of the following handler
+functions:
+  - __onPush__: callback called when a 'push' event is received (equivalent to a
+    "keydown" event).
+  - __onRelease__: callback called when a 'release' event is received
+    (equivalent to a "keyup" event).
+  - __onPress__: callback called when a 'press' event is received (see below).
+  - __onEvent__: callback called when a 'push', 'press' or 'release' event is
+    received.
   - __onDown__: callback called when a 'push' or 'press' event is received.
   - __onUnbind__: callback called just before the handler in unbound.
 
-Each of these callbacks will receive the same event object with, as usual, the following properties:
-  - keyName: Name of the key pushed.
-  - event: 'push', 'press' or 'release'
-  - timepress: time the key was pressed (0 for a push event)
+Each of these callbacks will receive the same event object with, as usual, the
+following properties:
+  - keyName (`string`): Name of the key pushed.
+  - event (`string`): `'push'`, `'press'` or `'release'`
+  - timepress (`number`): time the key was pressed (0 for a push event), in
+    milliseconds
 
-### RxKeyboard
-
-The RxKeyboard can be used to connect the rKeyboard to the RxJS library.
-This allows you to treat keyboard events an observable stream.
-
-Each keyboard created from the RxKeyboard generate Observer functions compatible with most RxJS versions.
-Its arguments are the same than for the other implementations (keys then options).
-
+You can call `unbind` to stop listening to those keys when you're done:
 ```js
-import { RxKeyboard } from 'rkeyboard';
-import rx from 'rxjs';
-
-// Creating a new Keyboard
-const kb = RxKeyboard.create();
-
-// Catching keys with specific options
-const observer = kb('Enter', 'Up', 'Down', { press: { after: 500 } });
-
-console.log(typeof observer); // function
-
-// our observer can be used in a rx.Observable through the
-// create method.
-const observable = rx.Observable.create(observer);
-
-// here we can subscribe to it
-const subscription = observable.subscribe();
-
-// as well as unsubscribe to stop triggering our callback and let
-// the event propagate
-subscription.unsubscribe();
+upOrDown.unbind();
 ```
 
-#### Simple events
 
+### Declaring press events ####################################################
+
+A more advanced use case can be to handle "press events".
+
+Press events happen when the user pushed a key for a certain amount of time.
+Passed that time, those events can be re-sent at a certain interval.
+
+Both of those timer (from which time we "press" and at which interval we repeat)
+are configurable.
+
+Examples will be more explicit here:
 ```js
-import { RxKeyboard } from 'rkeyboard';
-import rx from 'rxjs';
 
-const kb = RxKeyboard.create();
+// 1. Emit 'press' event after 500 ms if the key is pushed without being
+// released
+keyboard.bind(['Up', 'Down'], {
+  press: { // <- added the press property
+    after: 500 // <- begin press event after 500 milliseconds
+  },
 
-/*
- * 1. Listening to a single Key
- */
-rx.Observable.create(kb('Enter')).subscribe((key) => {
-  // 'push' or 'release'
-  switch (key.event) {
-    case 'push':
-      console.log('Enter key pushed!');
-      break;
+  onPress(evt) { // <- handler function, same as before
+    console.log(`The key ${evt.keyName} was pressed for 500 ms!`);
 
-    case 'release':
-      console.log('Enter key released!');
-      break;
-
-    default:
-      console.log('This should not happen!');
+    console.log(evt.timepress); // should be equal to `500` (or almost 500)
   }
+
+  // ... (onPush etc are still usable here)
 });
 
-/*
- * 2. Listening to multiple keys at the same time
- */
-rx.Observable.create(kb('Left', 'Right')).subscribe((key) => {
-  // the name of the key pressed. Here 'Left' or 'Right'
-  const keyName = key.keyName;
-
-  if (key.event === 'push')
-    console.log(`${keyName} key pushed!`);
-  else {
-    console.log(`${keyName} key released!`);
-});
-
-/*
- * 3. Listening to a group of keys
- */
-rx.Observable.create(kb('Directions')).subscribe((key) => {
-  // the name of the key pressed. Here 'Left', 'Right'
-  // 'Up' or 'Down'
-  const keyName = key.keyName;
-
-  if (key.event === 'push')
-    console.log(`${keyName} key pushed!`);
-  else {
-    console.log(`${keyName} key released!`);
-});
-
-/*
- * 4. Listening to every keys declared
- */
-rx.Observable.create(kb()).subscribe((key) => {
-  if (key.event === 'push')
-    console.log(`${keyName} key pushed!`);
-  else {
-    console.log(`${keyName} key released!`);
-});
-```
-
-#### Press events
-
-```js
-import { RxKeyboard } from 'rkeyboard';
-import rx from 'rxjs';
-
-const kb = RxKeyboard.create();
-
-/*
- * 1. Emit 'press' event after 500 ms if the key is pushed
- * without being released
- */
-const options = {
-  press: {
-    after: 500
-  }
-};
-
-rx.Observable.create(kb('Up', 'Down', options))
-  // the 'press' event is added for our case
-  .filter(e => e.event === 'press')
-  .subscribe((key) => {
-    console.log(`${keyName} key pressed for 500ms!`);
-});
-
-/*
- * 2. Emit 'press' events EVERY 500 ms while the key is pushed
- * without being released
- */
-const options = {
+// 2. Emit 'press' events EVERY 500 ms while the key is pushed without being
+// released
+keyboard.bind(['Up', 'Down'], {
   press: {
     interval: 500
-  }
-};
+  },
 
-rx.Observable.create(kb('Up', 'Down', options))
-  .filter(e => e.event === 'press')
-  .subscribe((key) => {
-    const keyName = key.keyName;
-    const timepress = key.timepress;
-    console.log(`${keyName} key pressed for ${timepress}!`);
-  });
-
-/*
- * 3. Emit 'press' events:
- *   1. AFTER 500ms as the key is pushed without being released
- *   2. EVERY 200ms after that (until the release)
- */
-const options = {
+// 3. Emit 'press' events:
+//      1. AFTER 500ms as the key is pushed without being released
+//      2. EVERY 200ms after that (until the release)
+keyboard.bind(['Up', 'Down'], {
   press: {
     after: 500
     interval: 200
-  }
-};
+  },
 
-rx.Observable.create(kb('Up', 'Down', options))
-  .filter(e => e.event === 'press')
-  .subscribe((key) => {
-    const keyName = key.keyName;
-    const timepress = key.timepress;
-    console.log(`${keyName} key pressed for ${timepress}!`);
-  });
+  // ...
+});
 ```
-#### Propagation rules
 
+
+### Propagation rules ##########################################################
+
+An even more advanced usage are what we call "propagation rules".
+
+By default, when a second handler bind to the same keys than a first handler,
+the first handler will not be called for those keys anymore until the second
+one is "unbound".
+
+Chances are, that's what you want in most cases.
+
+There could still be cases were you still want the handler declared before you
+have control.
+
+That's what propagation rules are for. Again, let's show a simple example:
 ```js
-import { RxKeyboard } from 'rkeyboard';
-import rx from 'rxjs';
+// Take control of the key 'Enter' and 'End'.
+const bind1 = keyboard.bind(['Enter', 'End'], {
+  // ...
+});
 
-// added shortcut
-const Obs = rx.Observable;
-
-const kb = RxKeyboard.create();
-
-// Here, we can take control of the key 'Enter' and 'End'.
-const sub1 = Obs.create(kb('Enter', 'End'))
-  .subscribe(() =>
-    console.log(' I should receive both Enter and End here')
-  );
-
-// Here, we are the one taking the control of the key 'Enter'.
-// sub1 will not receive events for 'Enter'.
+// Here, we take control of the key 'Enter' again.
+// bind1 event handlers will not receive events for the 'Enter' key.
 // It will for 'End' though as we ignore this one.
-const sub2 = Obs.create(kb('Enter'))
-  .subscribe(() =>
-    console.log('I\'m the only one to receive Enter')
-  );
+const bind2 = keyboard.bind(['Enter'], {
+  // ...
+});
 
-// By unsubscribing, we give back the control to sub1.
-sub2.unsubscribe();
+// By unbinding bind2, bind1 is notified again when the 'Enter' key is pressed.
+bind2.unbind();
 
 // Here, we set the propagate option to true.
-// That way, both sub3 and sub1 receive events for the 'Enter'
-// key.
-const sub3 = Obs.create(kb('Enter', { propagate: true }))
-  .subscribe(() =>
-    console.log('I\'m the FIRST one to receive Enter')
-  );
+// That way, both bind3 and bind1 receive events for the 'Enter' key.
+const bind3 = keyboard.bind(['Enter'], {
+  propagate: true,
+  // ...
+});
 
 // NOTE: We can put as many propagation level as we want.
 //
-// Example: sub55 propagate a key to sub54 which propagate to sub53
-// which does NOT propagate to sub52.
-// In this case, sub52 will receive the event only if sub55, sub54
-// AND sub53 unsubscribe.
-// This can go on and on to sub1 with multiple layer of propagations.
+// Example: bind55 propagate a key to bind54 which propagate to bind53
+// which does NOT propagate to bind52.
+// In this case, bind52 will receive the event only if bind55, bind54
+// AND bind53 are not binded anymore.
+// This can go on and on to bind1 with multiple layer of propagations.
 
-// Declaring two rxKeyboard. Each has its own propagation layers.
+// Note: By declaring two RKeyboard, each will have their own propagation
+// layers.
 
-const kb1 = RxKeyboard.create();
-const kb2 = RxKeyboard.create();
+const kb1 = RKeyboard();
+const kb2 = RKeyboard();
 
-Obs.create(kb('Enter')).subscribe(() => console.log('a'));
+kb1.bind(['Enter'], {
+  onPush: () => { console.log('a'); }
+});
+kb2.bind(['Enter'], {
+  onPush: () => { console.log('b'); }
+});
+kb2.bind(['Enter'], {
+  onPush: () => { console.log('c'); }
+});
+kb1.bind(['Enter'], {
+  propagate: true, // <- Note the propagate here
+  onPush: () => { console.log('d'); }
+});
 
-Obs.create(kb('Enter')).subscribe(() => console.log('b'));
-Obs.create(kb('Enter')).subscribe(() => console.log('c'));
-Obs.create(kb('Enter', { propagate: true }))
-  .subscribe(() => console.log('d'));
 
-
-// If we press the 'Enter' key, we get the following output:
+// If we press the 'Enter' key, we should get the following output:
 // a
-// d
 // c
+// d
 ```
 
-## TODOS
-- README
-- Rewrite functional tests
-- Add key combination (ordered or not)?
+
+### Reemit logic ###############################################################
+
+Another advanced concept is the possibility to re-emit a key event when the key
+was already pushed when the binding was done.
+
+This can be for example useful when the key in question caused the corresponding
+binding.
+
+Let's take the following example:
+```js
+const keyboard = RKeyboard();
+
+keyboard.bind(['Enter'], {
+  onPush() {
+    openMenu();
+  }
+});
+
+function openMenu() {
+  keyboard.bind(['Enter'], {
+    onPush() {
+      // selectMenuEntry();
+    }
+  });
+
+  // displayMenu();
+  // ...
+}
+```
+
+Here pushing the "Enter" key will directly display a menu also grabbing the
+Enter key. That's not much of a problem but if the user doesn't let go of that
+key, the second binding will never know it has been pushed.
+
+From there, you could either:
+  1. think that if the user doesn't let go of that key, its intent is surely
+     to click it again.
+  2. think that's normal, if the user wants to tell us 'Enter' again, he/she
+     should just re-click on it 
+
+If you're on the first case, you're in luck! That's the default behavior.
+
+By default, the corresponding "push" event is re-emitted 500 milliseconds after
+the binding is done if the key is still pressed. The corresponding "press"
+events (if you specified them) will then start from that milestone.
+
+That 500 milliseconds delay is easily configurable thanks to the `reEmit`
+option:
+```js
+keyboard.bind(['Enter'], {
+  reEmit: 1000, // if the enter key was already pushed, wait 1 second. If
+                // the key is still not released after it, re-send push event.
+  onPush() {
+    console.log('Enter key was either pushed or maintained for at least 1s!');
+  }
+```
+
+If you're in the second case (you don't want to reEmit), that's still possible.
+Just set the `reEmit` option to -1:
+```js
+keyboard.bind(['Enter'], {
+  reEmit: -1, // Disable the reEmit logic
+  onPush() {
+    console.log('Enter key was pushed!');
+  }
+```
+
+Related note: the "release" event is not received from binding which didn't
+received the corresponding "push" event. That was done on purpose because it was
+seen as a sane behavior. Please open an issue if you don't think that's the
+case.

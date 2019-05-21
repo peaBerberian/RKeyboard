@@ -1,6 +1,6 @@
 {
-  "name": "rkeyboard.js",
-  "version": "0.1.0",
+  "name": "r-keyboard",
+  "version": "0.2.0",
   "description": "Complex keyboard management made easy",
   "main": "bin/rkeyboard.js",
   "scripts": {

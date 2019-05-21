@@ -4,6 +4,7 @@
 // SHOULD COMBINE DO A RELEASE? What about propagation?
 // -> No for the moment
 // COMBINATION OF KEYS: Ctrl+Up Ctrl>Up
+// TIMEPRESS when REEMIT?
 import isSet from './misc/isSet.js';
 import uniq from './misc/uniq.js';
 
@@ -159,11 +160,9 @@ export default (opt = {}) => {
   return {
     listen(...args) {
       // get arguments
-      const {
-        keys = uniq(Object.values(keyMap)),
-        options = {},
-        callbackNext = () => {}
-      } = _processArguments(groupings, ...args);
+      const { keys,
+              options,
+              callbackNext } = _processArguments(groupings, ...args);
 
       // get after and interval options
       const {
@@ -494,9 +493,9 @@ export default (opt = {}) => {
  * @returns {Function|undefined} obj.callbackNext
  */
 const _processArguments = function(groupings, ...args) {
-  let keys; // key names
-  let options;
-  let callbackNext;
+  let keysArg; // key names
+  let optionsArg;
+  let callbackArg;
 
   /**
    * Browse Groupings to be sure only key names are returned.
@@ -505,7 +504,7 @@ const _processArguments = function(groupings, ...args) {
    */
   const getKeysFromNames = (names) =>
     names.reduce((kns, name) => {
-      if (Object.keys(groupings).includes(name)) {
+      if (Object.keysArg(groupings).includes(name)) {
         return kns.concat(groupings[name]);
       }
       kns.push(name);
@@ -517,11 +516,11 @@ const _processArguments = function(groupings, ...args) {
   let arg = args[argId];
 
   if (Array.isArray(arg)) {
-    keys = getKeysFromNames(arg);
+    keysArg = getKeysFromNames(arg);
     argId++;
     arg = args[argId];
   } else if (typeof arg === 'string') {
-    keys = getKeysFromNames([arg]);
+    keysArg = getKeysFromNames([arg]);
     argId++;
     arg = args[argId];
   } else if (!isSet(arg) && argsLen - 1 > argId) {
@@ -530,7 +529,7 @@ const _processArguments = function(groupings, ...args) {
   }
 
   if (typeof arg === 'object' && arg !== null) {
-    options = arg;
+    optionsArg = arg;
     argId++;
     arg = args[argId];
   } else if (!isSet(arg) && argsLen - 1 > argId) {
@@ -539,9 +538,15 @@ const _processArguments = function(groupings, ...args) {
   }
 
   if (typeof arg === 'function') {
-    callbackNext = arg;
+    callbackArg = arg;
   }
 
+  const keys = isSet(keysArg) ? keysArg :
+                                uniq(Object.values(keyMap));
+  const options = isSet(optionsArg) ? optionsArg :
+                                      {};
+  const callbackNext = isSet(callbackArg) ? callbackArg :
+                                            () => {};
   return { keys,
            options,
            callbackNext  };

@@ -1,6 +1,7 @@
-# Default keyMap
+# Default keyMap ###############################################################
 
-The default keyMap used in the RKeyboard (that you will use if you're not specifying your own keyMap on RKeyboard creation) is as such:
+The default keyMap used in the RKeyboard (that you will use if you're not
+specifying your own keyMap on RKeyboard creation) is as such:
 
 | keyCode | keyName        | Description      |
 |---------|----------------|------------------|
