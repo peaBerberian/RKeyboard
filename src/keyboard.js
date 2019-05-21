@@ -11,6 +11,11 @@ import listen, { KEYCODES_PUSHED } from './events.js';
 import KeyCatcher from './key_catcher.js';
 import defaultConfig from './config.js';
 
+const { DEFAULT_COMBINE_VALUE,
+        DEFAULT_PROPAGATE_VALUE,
+        DEFAULT_REEMIT_TIMEOUT,
+        DEFAULT_PREVENT_DEFAULT } = config;
+
 /**
  * Defines three types of events:
  *
@@ -22,11 +27,9 @@ import defaultConfig from './config.js';
  *       This event is sent at intervals depending on params you gave to
  *       this listener.
  */
-const EVENT_NAMES = {
-  KEY_DOWN: 'push',
-  KEY_UP: 'release',
-  KEY_PRESS: 'press'
-};
+const EVENT_NAMES = { KEY_DOWN: 'push',
+                      KEY_UP: 'release',
+                      KEY_PRESS: 'press' };
 
 /**
  * Keyboard factory.
@@ -115,27 +118,26 @@ const EVENT_NAMES = {
 export default (opt = {}) => {
 
   const keyMap = opt.keyMap || defaultConfig.KEY_MAP;
+
   const groupings = opt.groupings || defaultConfig.GROUPINGS;
 
-  const defaultCombine = isSet(opt.combine) ?
-    opt.combine : defaultConfig.DEFAULT_COMBINE_VALUE;
+  const defaultCombine = isSet(opt.combine) ? opt.combine :
+                                              DEFAULT_COMBINE_VALUE;
 
-  const defaultPropagate = isSet(opt.propagate) ?
-    opt.propagate : defaultConfig.DEFAULT_PROPAGATE_VALUE;
+  const defaultPropagate = isSet(opt.propagate) ? opt.propagate :
+                                                  DEFAULT_PROPAGATE_VALUE;
 
-  const defaultReemit = isSet(opt.reEmit) ?
-    opt.reEmit : defaultConfig.DEFAULT_REEMIT_TIMEOUT;
+  const defaultReemit = isSet(opt.reEmit) ? opt.reEmit :
+                                            DEFAULT_REEMIT_TIMEOUT;
 
-  const preventDefault = isSet(opt.preventDefault) ?
-    opt.preventDefault : defaultConfig.DEFAULT_PREVENT_DEFAULT;
+  const preventDefault = isSet(opt.preventDefault) ? opt.preventDefault :
+                                                     DEFAULT_PREVENT_DEFAULT;
 
   // Create new propagation layer from the KeyCatcher
-  const kc = KeyCatcher({
-    keyMap,
-    propagate: defaultPropagate,
-    reEmit: defaultReemit,
-    preventDefault
-  });
+  const kc = KeyCatcher({ keyMap,
+                          propagate: defaultPropagate,
+                          reEmit: defaultReemit,
+                          preventDefault });
 
   /**
    * Object where:
@@ -236,13 +238,12 @@ export default (opt = {}) => {
        * object).
        * @param {Object} keyObj
        */
-      const sendPushEvent = (ctx, { keyName }) => {
-        callbackNext.call(ctx, {
-          keyName,
-          event: EVENT_NAMES.KEY_DOWN,
-          pressInterval: 0,
-          timepress: 0
-        });
+      const sendPushEvent = (ctx, keyObj) => {
+        const { keyName } = keyObj;
+        callbackNext.call(ctx, { keyName,
+                                 event: EVENT_NAMES.KEY_DOWN,
+                                 pressInterval: 0,
+                                 timepress: 0 });
       };
 
       /**
@@ -251,17 +252,15 @@ export default (opt = {}) => {
        * @param {Object} keyObj
        */
       const sendPressEvent = (ctx, keyObj) => {
-        const {
-          keyName,
-          currentPressInterval,
-          pushStart
-        } = keyObj;
-        callbackNext.call(ctx, {
-          keyName,
-          event: EVENT_NAMES.KEY_PRESS,
-          pressInterval: currentPressInterval,
-          timepress: pushStart ? (Date.now() - pushStart) : 0,
-        });
+        const { keyName,
+                currentPressInterval,
+                pushStart } = keyObj;
+        const timepress = isSet(pushStart) ? performance.now() - pushStart :
+                                             0;
+        callbackNext.call(ctx, { keyName,
+                                 event: EVENT_NAMES.KEY_PRESS,
+                                 pressInterval: currentPressInterval,
+                                 timepress });
       };
 
       /**
@@ -270,17 +269,15 @@ export default (opt = {}) => {
        * @param {Object} keyObj
        */
       const sendReleaseEvent = (ctx, keyObj) => {
-        const {
-          keyName,
-          currentPressInterval,
-          pushStart
-        } = keyObj;
-        callbackNext.call(ctx, {
-          keyName,
-          event: EVENT_NAMES.KEY_UP,
-          pressInterval: currentPressInterval,
-          timepress: pushStart ? (Date.now() - pushStart) : 0
-        });
+        const { keyName,
+                currentPressInterval,
+                pushStart } = keyObj;
+        const timepress = isSet(pushStart) ? performance.now() - pushStart :
+                                             0;
+        callbackNext.call(ctx, { keyName,
+                                 event: EVENT_NAMES.KEY_UP,
+                                 pressInterval: currentPressInterval,
+                                 timepress });
       };
 
       /**
@@ -324,7 +321,8 @@ export default (opt = {}) => {
           // Update activePresses to add this keyObj reference to it.
           const keyActivePresses = activePresses[keyObj.keyName];
           activePresses[keyObj.keyName] = keyActivePresses ?
-            keyActivePresses.push(keyObj) : [keyObj];
+            keyActivePresses.push(keyObj) :
+            [keyObj];
 
           /**
            * Set timeout and interval for a single pressInterval.
@@ -349,7 +347,7 @@ export default (opt = {}) => {
                   sendPressEvent(ctx, keyObj);
                 }, pressInterval.interval);
               } else {
-                keyObj.interval = 0;
+                keyObj.interval = null;
               }
 
               // 3 - send initial press event
@@ -402,7 +400,7 @@ export default (opt = {}) => {
 
         // set keyObj data
         keyObj.isPushed = true;
-        keyObj.pushStart = Date.now();
+        keyObj.pushStart = performance.now();
 
         // send initial push event
         sendPushEvent(cbCtx, keyObj);
@@ -460,10 +458,8 @@ export default (opt = {}) => {
         });
       }
 
-      kc.register(keys, {
-        propagate: shouldPropagate,
-        reEmit: reEmitTimeout
-      }, onEvent);
+      kc.register(keys, { propagate: shouldPropagate,
+                          reEmit: reEmitTimeout }, onEvent);
 
       return () => {
         if (!shouldCombineKeys) {
@@ -546,15 +542,16 @@ const _processArguments = function(groupings, ...args) {
     callbackNext = arg;
   }
 
-  return {
-    keys,
-    options,
-    callbackNext,
-  };
+  return { keys,
+           options,
+           callbackNext  };
 };
 
 /**
  * Insertion sort algorithm for pressIntervals.
+ * Insertion sort is preferred here as:
+ *   1. The array is most probably already sorted by the caller
+ *   2. The length of the Array have a high chance of being (very) small
  * /!\ Mutate the given array
  * @param {Array.<Object>} pressIntervals
  * @returns {Array.<Object>}
@@ -565,10 +562,8 @@ const _sortPressIntervals = (pressIntervals) => {
   for (let i = 0; i < len; i++) {
     // That does not look like an efficient way of doing it, but it doesn't
     // matter here
-    pressIntervals[i] = {
-      after: +pressIntervals[i].after,
-      interval: +pressIntervals[i].interval
-    };
+    pressIntervals[i] = { after: +pressIntervals[i].after,
+                          interval: +pressIntervals[i].interval };
 
     if (isNaN(pressIntervals[i].after)) {
       if (!isNaN(pressIntervals[i].interval)) {
@@ -608,12 +603,10 @@ const _sortPressIntervals = (pressIntervals) => {
  */
 const _processOptions = function(options) {
   let pressIntervals, reEmit;
-  const {
-    propagate: propagateOpt,
-    combine: combineOpt,
-    reEmit: reEmitOpt,
-    press: pressOpt
-   } = options;
+  const { propagate: propagateOpt,
+          combine: combineOpt,
+          reEmit: reEmitOpt,
+          press: pressOpt } = options;
 
   if (isSet(pressOpt)) {
     if (Array.isArray(pressOpt)) {
@@ -624,20 +617,14 @@ const _processOptions = function(options) {
       if (isNaN(afterOpt)) {
         if (!isNaN(intervalOpt)) {
           // In our case: { interval: 100 } == { press: 100, interval: 100 }
-          pressIntervals = [{
-            after: intervalOpt,
-            interval: intervalOpt
-          }];
+          pressIntervals = [{ after: intervalOpt,
+                              interval: intervalOpt }];
         }
       } else if (isNaN(intervalOpt)) {
-        pressIntervals = [{
-          after: afterOpt
-        }];
+        pressIntervals = [{ after: afterOpt }];
       } else {
-        pressIntervals = [{
-          after: afterOpt,
-          interval: intervalOpt
-        }];
+        pressIntervals = [{ after: afterOpt,
+                            interval: intervalOpt }];
       }
     }
   }
@@ -649,10 +636,8 @@ const _processOptions = function(options) {
     }
   }
 
-  return {
-    pressIntervals,
-    combine: combineOpt,
-    reEmit,
-    propagate: propagateOpt
-  };
+  return { pressIntervals,
+           combine: combineOpt,
+           reEmit,
+           propagate: propagateOpt };
 };

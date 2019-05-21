@@ -7,12 +7,12 @@ import createKeyboard from '../keyboard.js';
  * @type {Object}
  * @example
  * import { RxKeyboard } from 'Keyboardjs';
- * import rx from 'rxjs';
+ * import { Observable } from 'rxjs';
  *
  * const kb = RxKeyboard.create();
  *
  * // start listening
- * rx.Observable.create(kb(['Enter', 'Up', 'Down']))
+ * new Observable(kb(['Enter', 'Up', 'Down']))
  *   .subscribe((e) => {
  *     // ...
  *   });

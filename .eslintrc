@@ -4,21 +4,21 @@
     "es6": true,
     "jasmine": true
   },
-  "extends": "defaults",
-  "globals": {
+  "parserOptions": {
+    "sourceType": "module",
+    "ecmaVersion": 2018,
   },
-  "parser": "babel-eslint",
   "plugins": [
     "eslint-plugin-jasmine"
   ],
   "rules": {
-    "indent": [
-      "error",
-      2,
-      {
-        "SwitchCase": 1
-      }
-    ],
+    /* "indent": [ */
+    /*   "error", */
+    /*   2, */
+    /*   { */
+    /*     "SwitchCase": 1 */
+    /*   } */
+    /* ], */
     "keyword-spacing": "error",
     "no-console": 0,
     "no-const-assign": "error",

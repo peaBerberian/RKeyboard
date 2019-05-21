@@ -1,15 +1,3 @@
-/**
- * This file defines the KeyCatcher function allowing anyone to register
- * callbacks which can be triggered when a keyup / keydown event is received
- * for specific keys.
- *
- * It manages propagation rules when multiple callbacks are registered for
- * the same keys and reEmitting rules to re-emit a keydown when the registration
- * was done after the key was initially pushed.
- *
- * This file can be imported and used directly for key management.
- */
-
 import uniq from './misc/uniq.js';
 import isSet from './misc/isSet.js';
 import listen, { KEYCODES_PUSHED } from './events.js';
@@ -24,6 +12,19 @@ import defaultConfig from './config.js';
  *
  * Those events are received when a user provoked a keydown or keyup event on
  * the DOM.
+ *
+ * It also brings the following features:
+ *
+ *   - "propagation rules" which dictate what happens when multiple callbacks
+ *     are registered for the same keys.
+ *
+ *     I.e. Should we disable the previous callback until the new one is
+ *     unregistered? Should we enable both at the same time?
+ *
+ *
+ *   - "re-emitting rules" to help decide if we have to re-trigger a keydown
+ *     event when a registration is done after the key was initially pushed.
+ *
  *
  * @example
  * const kc = KeyCatcher();
@@ -72,14 +73,14 @@ export default (opt = {}) => {
 
   const keyMap = opt.keyMap || defaultConfig.KEY_MAP;
 
-  const defaultPropagate =
-    opt.propagate || defaultConfig.DEFAULT_PROPAGATE_VALUE;
+  const defaultPropagate = opt.propagate ||
+                           defaultConfig.DEFAULT_PROPAGATE_VALUE;
 
-  const preventDefault =
-    opt.preventDefault || defaultConfig.DEFAULT_PREVENT_DEFAULT;
+  const preventDefault = opt.preventDefault ||
+                         defaultConfig.DEFAULT_PREVENT_DEFAULT;
 
-  const defaultReemit =
-    opt.reEmit || defaultConfig.DEFAULT_REEMIT_VALUE;
+  const defaultReemit = opt.reEmit ||
+                        defaultConfig.DEFAULT_REEMIT_VALUE;
 
   // /**
   //  * Store every keyName from every key currently held, in the right order.
@@ -105,9 +106,8 @@ export default (opt = {}) => {
    * Create a listener.
    * @type Object
    */
-  const listener = listen(Object.keys(keyMap).map(x => +x), {
-    preventDefault
-  });
+  const listener = listen(Object.keys(keyMap).map(x => +x),
+                          { preventDefault });
 
   /**
    * Here we define internal mechanisms to precisely manage propagation
@@ -427,12 +427,10 @@ export default (opt = {}) => {
         callback = args[args.length - 1];
       }
 
-      return {
-        keyNames,
-        propagate,
-        reEmit,
-        callback
-      };
+      return { keyNames,
+               propagate,
+               reEmit,
+               callback };
     };
 
       /**
@@ -569,10 +567,8 @@ export default (opt = {}) => {
         callback = args[args.length - 1];
       }
 
-      return {
-        keyNames,
-        callback
-      };
+      return { keyNames,
+               callback };
     };
 
     /**

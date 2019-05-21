@@ -34,7 +34,7 @@ class InputGroupComponent extends React.Component {
         inputs: [{
           name: void 0,
           type: void 0,
-        value: void 0
+          value: void 0
         }]
       });
     } else {

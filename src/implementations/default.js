@@ -91,7 +91,7 @@ import createKeyboard from '../keyboard.js';
  * myKeyListener.unbind();
  * ```
  */
-export (opt) => {
+function RKeyboard(opt) {
   const kb = createKeyboard(opt);
 
   const callIfExist = (cb, evt) => cb && cb(evt);
@@ -155,4 +155,6 @@ export (opt) => {
       kb.close();
     }
   };
-};
+}
+
+export default RKeyboard();

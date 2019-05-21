@@ -16,7 +16,7 @@
  *   - You must define the keyCodes listened to, and you are only notified for
  *     the events for those keys.
  *
- *   - Multiple on call for the same callback will bind only the last one
+ *   - Multiple `on` call for the same callback will bind only the last one
  *     declared.
  *
  *   - The callback will have as argument the keyCode of the key pushed.
@@ -24,11 +24,14 @@
  * Please note that this file perform three addEventListener when parsed.
  */
 
+import isSet from "./misc/isSet";
+
 /**
  * Array containing every key pushed.
  * Used by addKeyPushedToArray / removeKeyPushedFromArray / isKeyPushed.
  * Used to avoid sending two times in a row a keydown event for the same key.
  * @type Array.<Number>
+ * TODO HashMap
  */
 const KEYCODES_PUSHED = [];
 
@@ -247,8 +250,8 @@ const triggerKeyUpEvent = (keyCode) => {
 
 const getKeyCode = (evt) => {
   const { keyCode } = evt;
-  return keyCode != null ?
-    keyCode : evt.which;
+  return isSet(keyCode) ? keyCode :
+                          evt.which;
 };
 
 /**
@@ -259,7 +262,7 @@ const onKeyDown = (evt) => {
   const keyCode = getKeyCode(evt);
 
   // if the key is already pushed, quit, we have our own mean for consecutive
-  // keydowns (@see CONSECUTIVE_KEYDOWNS_OBJECT)
+  // keydowns
   if (isKeyPushed(keyCode)) {
     return;
   }
@@ -305,10 +308,8 @@ document.addEventListener('keyup', onKeyUp);
 window.addEventListener('blur', () => {
   // ugly but does the job
   KEYCODES_PUSHED.forEach(keyCode =>
-    onKeyUp({
-      keyCode,
-      preventDefault: () => {}
-    })
+    onKeyUp({ keyCode,
+              preventDefault: () => {} })
   );
 });
 
