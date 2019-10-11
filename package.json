@@ -4,10 +4,11 @@
   "description": "Complex keyboard management made easy",
   "main": "bin/rkeyboard.js",
   "scripts": {
-    "test": "",
-    "build": "webpack",
+    "build": "RKB_ENV=\"development\" webpack",
     "clean": "rm -rf ./bin/*",
-    "lint": "eslint src/**/*.js"
+    "lint": "eslint src/**/*.js",
+    "min": "webpack",
+    "test": ""
   },
   "repository": {
     "type": "git",
