@@ -50,7 +50,7 @@ class InputGroupComponent extends React.Component {
     super(...args);
   }
 
-  removeInput(id) { 
+  removeInput(id) {
     if (this.state.inputs.length <= 1) {
       // erase value of the first element
       this.setState({
@@ -102,7 +102,7 @@ class InputGroupComponent extends React.Component {
   }
 
   render() {
-    const toto = return this.state.inputs.map((input, i) =>
+    const toto = this.state.inputs.map((input, i) =>
       input.text ?
         <InputAndValueComponent
           name={input.name}
@@ -169,7 +169,7 @@ const InputAndValueComponent = function(props) {
         {props.text}
       </span>
       <span className={'input-val'}>
-        {input}     
+        {input}
       </span>
     </div>
   );

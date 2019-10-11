@@ -1,12 +1,12 @@
 import React from 'react';
-import ReactDOM from 'react-dom';
+// import ReactDOM from 'react-dom';
 
-const CREATE_OPTIONS = {
-  combine: 'boolean',
-  propagate: 'boolean',
-  reEmit: 'number',
-  preventDefault: 'boolean'
-};
+// const CREATE_OPTIONS = {
+//   combine: 'boolean',
+//   propagate: 'boolean',
+//   reEmit: 'number',
+//   preventDefault: 'boolean'
+// };
 
 class CreateKeyboardComponent extends React.Component {
   constructor(...args) {
@@ -27,7 +27,7 @@ class InputGroupComponent extends React.Component {
     super(...args);
   }
 
-  removeInput(id) { 
+  removeInput(id) {
     if (this.state.inputs.length <= 1) {
       // erase value of the first element
       this.setState({
@@ -40,7 +40,7 @@ class InputGroupComponent extends React.Component {
     } else {
       // remove the wanted input completely
       this.setState({
-        inputs: [...this.state.inputs].splice(id, 1);
+        inputs: [...this.state.inputs].splice(id, 1)
       });
     }
   }
@@ -83,14 +83,16 @@ class InputGroupComponent extends React.Component {
   }
 
   render() {
-    const toto = return this.state.inputs.map((input, i) => {
-      <InputComponent
-        name={this.props.name}
-        type={this.props.type}
-        onNameChange={this.inputNameListener(i)}
-        onValueChange={this.inputValueListener(i)}
-        onRemove={this.onRemove.bind(this)}
-      />
+    const toto = this.state.inputs.map((_input, i) => {
+      return (
+        <InputComponent
+          name={this.props.name}
+          type={this.props.type}
+          onNameChange={this.inputNameListener(i)}
+          onValueChange={this.inputValueListener(i)}
+          onRemove={this.onRemove.bind(this)}
+        />
+      );
     });
     return (
       <div className={className}>
@@ -105,8 +107,7 @@ const InputComponent = (props) => {
 
   switch (props.type) {
     case 'boolean':
-      return <input type="checkbox" id="cbox2">;
-      break;
+      return <input type="checkbox" id="cbox2" />;
     case 'number':
       break;
     case 'checkbox':
@@ -120,7 +121,7 @@ const InputComponent = (props) => {
         props.name
       </span>
       <span className={'input-val'}>
-        {input}     
+        {input}
       </span>
     </div>
   );
